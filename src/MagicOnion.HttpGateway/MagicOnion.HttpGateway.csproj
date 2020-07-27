@@ -1,64 +1,40 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFrameworks>netstandard2.0;net46;net47;</TargetFrameworks>
-    </PropertyGroup>
-
-    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU' AND '$(TargetFramework)' == 'net46'">
+        <TargetFrameworks>netstandard2.0;netcoreapp3.0</TargetFrameworks>
+        <OutputType>Library</OutputType>
+        <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
+        <SignAssembly>true</SignAssembly>
+        <AssemblyOriginatorKeyFile>opensource.snk</AssemblyOriginatorKeyFile>
+        <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
         <NoWarn>1701;1702;1705;1591</NoWarn>
-        <DefineConstants>DEBUG;NET_FRAMEWORK;net46;ENABLE_SAVE_ASSEMBLY;NON_UNITY;</DefineConstants>
+        <DefineConstants>NON_UNITY</DefineConstants>
+        <Company>Cysharp</Company>
+
+        <!-- NuGet -->
+        <PackageId>MagicOnion.HttpGateway</PackageId>
+        <Description>HTTP1 JSON Gateway and Swagger Integration for MagicOnion.</Description>
     </PropertyGroup>
 
-    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU' AND '$(TargetFramework)' == 'net46'">
-        <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
-        <NoWarn>1701;1702;1705;1591</NoWarn>
-        <DefineConstants>RELEASE;NET_FRAMEWORK;net46;NON_UNITY;</DefineConstants>
-        <DocumentationFile>bin\Release\net46\MagicOnion.HttpGateway.xml</DocumentationFile>
-    </PropertyGroup>
-
-    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU' AND '$(TargetFramework)' == 'net47'">
-        <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
-        <NoWarn>1701;1702;1705;1591</NoWarn>
-        <DefineConstants>DEBUG;NET_FRAMEWORK;NET47;ENABLE_SAVE_ASSEMBLY;NON_UNITY;</DefineConstants>
-    </PropertyGroup>
-
-    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU' AND '$(TargetFramework)' == 'net47'">
-        <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
-        <NoWarn>1701;1702;1705;1591</NoWarn>
-        <DefineConstants>RELEASE;NET_FRAMEWORK;NET47;NON_UNITY;</DefineConstants>
-        <DocumentationFile>bin\Release\net47\MagicOnion.HttpGateway.xml</DocumentationFile>
-    </PropertyGroup>
-
-    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU' AND '$(TargetFramework)' == 'netstandard2.0'">
-        <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
-        <NoWarn>1701;1702;1705;1591</NoWarn>
-        <DefineConstants>DEBUG;NETSTANDARD;NON_UNITY;</DefineConstants>
-    </PropertyGroup>
-
-    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU' AND '$(TargetFramework)' == 'netstandard2.0'">
-        <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
-        <NoWarn>1701;1702;1705;1591</NoWarn>
-        <DefineConstants>RELEASE;NETSTANDARD;NON_UNITY;</DefineConstants>
-        <DocumentationFile>bin\Release\netstandard2.0\MagicOnion.HttpGateway.xml</DocumentationFile>
-    </PropertyGroup>
+    <Choose>
+        <When Condition="'$(TargetFramework)'=='netcoreapp3.0'">
+            <ItemGroup>
+                <FrameworkReference Include="Microsoft.AspNetCore.App" />
+            </ItemGroup>
+        </When>
+        <Otherwise>
+            <ItemGroup>
+                <PackageReference Include="Microsoft.AspNetCore.Mvc.Abstractions" Version="2.2.0" />
+            </ItemGroup>
+        </Otherwise>
+    </Choose>
 
     <ItemGroup>
-        <None Remove="Swagger\SwaggerUI\index.html" />
-        <None Remove="Swagger\SwaggerUI\o2c.html" />
-        <None Remove="Swagger\SwaggerUI\swagger-ui.js" />
-        <None Remove="Swagger\SwaggerUI\swagger-ui.min.js" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <EmbeddedResource Include="Swagger\SwaggerUI\**\*" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <PackageReference Include="Grpc" Version="1.12.0" />
-        <PackageReference Include="MessagePack" Version="1.7.3.4" />
-        <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="1.1.2" />
-        <PackageReference Include="Newtonsoft.Json" Version="10.0.2" />
+        <PackageReference Include="Grpc" Version="2.23.0" />
+        <PackageReference Include="MessagePack" Version="2.1.90" />
+        <PackageReference Include="Newtonsoft.Json" Version="12.0.2" />
     </ItemGroup>
 
     <ItemGroup>
@@ -69,7 +45,10 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Properties\" />
+        <EmbeddedResource Include="Swagger\SwaggerUI\*" />
     </ItemGroup>
 
+    <ItemGroup>
+        <None Include="..\MagicOnion\Icon.png" Pack="true" PackagePath="/" />
+    </ItemGroup>
 </Project>

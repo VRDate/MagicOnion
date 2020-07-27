@@ -16,7 +16,6 @@ TestResults
 # Build results
 [Dd]ebug/
 [Rr]elease/
-x64/
 *_i.c
 *_p.c
 *.ilk
@@ -78,7 +77,7 @@ publish
 *.Publish.xml
 
 # NuGet Packages Directory
-packages
+# packages # upm pacakge will use Packages
 
 # Windows Azure Build Output
 csx
@@ -119,3 +118,9 @@ nuget/tools/*
 nuget/*.nupkg
 nuget/*.unitypackage
 .vs/
+
+# Jetbrains Rider
+.idea/
+src/MagicOnion.Client.Unity/Packages/manifest.json
+
+packages

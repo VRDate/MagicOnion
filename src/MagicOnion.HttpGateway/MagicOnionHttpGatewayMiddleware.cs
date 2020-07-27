@@ -3,13 +3,13 @@ using System.Reflection;
 using MagicOnion.Server;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 
 namespace MagicOnion.HttpGateway
 {
@@ -46,6 +46,7 @@ namespace MagicOnion.HttpGateway
                     //object parameters
                     var args = new List<object>();
                     var typeArgs = new List<Type>();
+
                     foreach (var p in handler.MethodInfo.GetParameters())
                     {
                         typeArgs.Add(p.ParameterType);
@@ -107,7 +108,8 @@ namespace MagicOnion.HttpGateway
                         }
                     }
 
-                    deserializedObject = MagicOnionMarshallers.InsantiateDynamicArgumentTuple(typeArgs.ToArray(), args.ToArray());
+                    deserializedObject = typeArgs.Count == 1 ?
+                        args[0] : MagicOnionMarshallers.InstantiateDynamicArgumentTuple(typeArgs.ToArray(), args.ToArray());
                 }
                 else
                 {
@@ -148,6 +150,7 @@ namespace MagicOnion.HttpGateway
             catch (Exception ex)
             {
                 httpContext.Response.StatusCode = 500;
+                httpContext.Response.ContentType = "text/plain";
                 await httpContext.Response.WriteAsync(ex.ToString());
             }
         }

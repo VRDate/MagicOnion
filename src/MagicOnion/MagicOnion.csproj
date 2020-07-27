@@ -1,100 +1,87 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net45;net46;net47</TargetFrameworks>
-    <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
-  </PropertyGroup>
+    <PropertyGroup>
+        <!-- net471 can not ignore for DynamicCodeDumper(.NET Core lacks assembly save) but currently removed(for CI) -->
+        <!--<TargetFrameworks>netstandard2.0;net471</TargetFrameworks>-->
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <OutputType>Library</OutputType>
+        <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
+        <SignAssembly>true</SignAssembly>
+        <AssemblyOriginatorKeyFile>opensource.snk</AssemblyOriginatorKeyFile>
+        <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+        <NoWarn>1701;1702;1705;1591</NoWarn>
+        <DefineConstants>NON_UNITY</DefineConstants>
+        <Company>Cysharp</Company>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU' AND '$(TargetFramework)' == 'net45'">
-    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
-    <NoWarn>1701;1702;1705;1591</NoWarn>
-    <DefineConstants>DEBUG;NET_FRAMEWORK;net45;ENABLE_SAVE_ASSEMBLY;NON_UNITY;</DefineConstants>
-  </PropertyGroup>
+        <!-- NuGet -->
+        <PackageId>MagicOnion</PackageId>
+        <Description>Unified Realtime/API Engine for .NET Core and Unity.</Description>
+    </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU' AND '$(TargetFramework)' == 'net46'">
-    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
-    <NoWarn>1701;1702;1705;1591</NoWarn>
-    <DefineConstants>DEBUG;NET_FRAMEWORK;net46;ENABLE_SAVE_ASSEMBLY;NON_UNITY;</DefineConstants>
-  </PropertyGroup>
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU' AND '$(TargetFramework)' == 'net471'">
+        <DefineConstants>NON_UNITY;ENABLE_SAVE_ASSEMBLY</DefineConstants>
+    </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU' AND '$(TargetFramework)' == 'net45'">
-    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
-    <NoWarn>1701;1702;1705;1591</NoWarn>
-    <DefineConstants>RELEASE;NET_FRAMEWORK;net45;NON_UNITY;</DefineConstants>
-    <DocumentationFile>bin\Release\net45\MagicOnion.xml</DocumentationFile>
-  </PropertyGroup>
+    <ItemGroup>
+        <None Include="Icon.png" Pack="true" PackagePath="/" />
+    </ItemGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU' AND '$(TargetFramework)' == 'net46'">
-    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
-    <NoWarn>1701;1702;1705;1591</NoWarn>
-    <DefineConstants>RELEASE;NET_FRAMEWORK;net46;NON_UNITY;</DefineConstants>
-    <DocumentationFile>bin\Release\net46\MagicOnion.xml</DocumentationFile>
-  </PropertyGroup>
+    <!-- NuGet -->
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU' AND '$(TargetFramework)' == 'net47'">
-    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
-    <NoWarn>1701;1702;1705;1591</NoWarn>
-    <DefineConstants>DEBUG;NET_FRAMEWORK;NET47;ENABLE_SAVE_ASSEMBLY;NON_UNITY;</DefineConstants>
-  </PropertyGroup>
+    <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard2.0' ">
+        <PackageReference Include="System.Threading.Tasks.Parallel" Version="4.3.0" />
+    </ItemGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU' AND '$(TargetFramework)' == 'net47'">
-    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
-    <NoWarn>1701;1702;1705;1591</NoWarn>
-    <DefineConstants>RELEASE;NET_FRAMEWORK;NET47;NON_UNITY;</DefineConstants>
-    <DocumentationFile>bin\Release\net47\MagicOnion.xml</DocumentationFile>
-  </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Grpc" Version="2.23.0" />
+        <PackageReference Include="MessagePack" Version="2.1.90" />
+        <PackageReference Include="System.Buffers" Version="4.5.0" />
+        <PackageReference Include="System.Collections.Immutable" Version="1.5.0" />
+        <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.5.3" />
+        <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="4.5.2" />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\MagicOnion.Abstractions\MagicOnion.Abstractions.csproj" />
+    </ItemGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU' AND '$(TargetFramework)' == 'netstandard2.0'">
-    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
-    <NoWarn>1701;1702;1705;1591</NoWarn>
-    <DefineConstants>DEBUG;NETSTANDARD1_5;NON_UNITY;</DefineConstants>
-  </PropertyGroup>
+    <!-- Exclude -->
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU' AND '$(TargetFramework)' == 'netstandard2.0'">
-    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
-    <NoWarn>1701;1702;1705;1591</NoWarn>
-    <DefineConstants>RELEASE;NETSTANDARD1_5;NON_UNITY;</DefineConstants>
-    <DocumentationFile>bin\Release\netstandard2.0\MagicOnion.xml</DocumentationFile>
-  </PropertyGroup>
+    <ItemGroup>
+        <None Remove="$(ProjectDir)..\**\*.meta" />
+    </ItemGroup>
 
-  <!-- NuGet -->
+    <!-- T4 -->
 
-  <ItemGroup Condition=" '$(TargetFramework)' == 'net45'">
-    <PackageReference Include="Grpc" Version="1.12.0" />
-    <PackageReference Include="MessagePack" Version="1.7.3.4" />
-    <Reference Include="System.Runtime.Remoting" />
-  </ItemGroup>
+    <ItemGroup>
+        <None Update="DynamicArgumentTuple.tt">
+            <Generator>TextTemplatingFileGenerator</Generator>
+            <LastGenOutput>DynamicArgumentTuple.cs</LastGenOutput>
+        </None>
+    </ItemGroup>
 
-  <ItemGroup Condition=" '$(TargetFramework)' == 'net46' OR '$(TargetFramework)' == 'net47'">
-    <PackageReference Include="Grpc" Version="1.12.0" />
-    <PackageReference Include="MessagePack" Version="1.7.3.4" />
-  </ItemGroup>
+    <ItemGroup>
+        <Compile Update="DynamicArgumentTuple.cs">
+            <DesignTime>True</DesignTime>
+            <AutoGen>True</AutoGen>
+            <DependentUpon>DynamicArgumentTuple.tt</DependentUpon>
+        </Compile>
+    </ItemGroup>
 
-  <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard2.0' ">
-    <PackageReference Include="Grpc" Version="1.12.0" />
-    <PackageReference Include="MessagePack" Version="1.7.3.4" />
-    <PackageReference Include="System.Threading.Tasks.Parallel" Version="4.3.0" />
-  </ItemGroup>
-
-  <!-- T4 -->
-
-  <ItemGroup>
-    <Service Include="{508349b6-6b84-4df5-91f0-309beebad82d}" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Update="DynamicArgumentTuple.tt">
-      <Generator>TextTemplatingFileGenerator</Generator>
-      <LastGenOutput>DynamicArgumentTuple.cs</LastGenOutput>
-    </None>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Update="DynamicArgumentTuple.cs">
-      <DesignTime>True</DesignTime>
-      <AutoGen>True</AutoGen>
-      <DependentUpon>DynamicArgumentTuple.tt</DependentUpon>
-    </Compile>
-  </ItemGroup>
+    <!-- Copy files for unity MagicOnion -->
+    <PropertyGroup>
+        <DestinationRoot>$(ProjectDir)..\MagicOnion.Client.Unity\Assets\Scripts\MagicOnion\</DestinationRoot>
+    </PropertyGroup>
+    <ItemGroup>
+        <TargetFiles Include="$(ProjectDir)**\*.cs" Exclude="**\bin\**\*.*;**\obj\**\*.*;**\Server\**\*.*" />
+    </ItemGroup>
+    <ItemGroup>
+      <Service Include="{508349b6-6b84-4df5-91f0-309beebad82d}" />
+    </ItemGroup>
+    <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+        <Copy SourceFiles="$(ProjectDir)Server\Hubs\BroadcasterHelper.cs" DestinationFiles="$(DestinationRoot)Server\Hubs\BroadcasterHelper.cs" SkipUnchangedFiles="true" />
+        <Copy SourceFiles="@(TargetFiles)" DestinationFiles="$(DestinationRoot)\%(RecursiveDir)%(Filename)%(Extension)" SkipUnchangedFiles="true" />
+    </Target>
 
 </Project>

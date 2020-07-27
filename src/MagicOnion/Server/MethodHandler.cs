@@ -1,61 +1,77 @@
-﻿using Grpc.Core;
+using Grpc.Core;
 using MessagePack;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace MagicOnion.Server
 {
     public class MethodHandler : IEquatable<MethodHandler>
     {
+        static int methodHandlerIdBuild = 0;
         static readonly byte[] emptyBytes = new byte[0];
 
+        int methodHandlerId = 0;
+
         public string ServiceName { get; private set; }
+        public string MethodName { get; private set; }
         public Type ServiceType { get; private set; }
         public MethodInfo MethodInfo { get; private set; }
         public MethodType MethodType { get; private set; }
 
         public ILookup<Type, Attribute> AttributeLookup { get; private set; }
 
-        readonly MagicOnionFilterAttribute[] filters;
+        readonly IMagicOnionFilterFactory<MagicOnionFilterAttribute>[] filters;
 
         // options
 
-        readonly bool isReturnExceptionStackTraceInErrorDetail;
-        readonly IMagicOnionLogger logger;
+        internal readonly bool isReturnExceptionStackTraceInErrorDetail;
+        internal readonly IMagicOnionLogger logger;
         readonly bool enableCurrentContext;
+        readonly IServiceLocator serviceLocator;
+        readonly IMagicOnionServiceActivator serviceActivator;
 
         // use for request handling.
 
         public readonly Type RequestType;
         public readonly Type UnwrappedResponseType;
 
-        readonly IFormatterResolver resolver;
+        readonly MessagePackSerializerOptions serializerOptions;
         readonly bool responseIsTask;
 
-        readonly Func<ServiceContext, Task> methodBody;
+        readonly Func<ServiceContext, ValueTask> methodBody;
         public Func<object, byte> serialize;
 
         // reflection cache
-        static readonly MethodInfo messagePackDeserialize = typeof(LZ4MessagePackSerializer).GetMethods()
-            .First(x => x.Name == "Deserialize" && x.GetParameters().Length == 2 && x.GetParameters()[0].ParameterType == typeof(byte[]));
+        static readonly MethodInfo messagePackDeserialize = typeof(MessagePackSerializer).GetMethods()
+            .First(x => x.Name == "Deserialize" && x.GetParameters().Length == 3 && x.GetParameters()[0].ParameterType == typeof(ReadOnlyMemory<byte>) && x.GetParameters()[1].ParameterType == typeof(MessagePackSerializerOptions));
+        static readonly MethodInfo createService = typeof(ServiceLocatorHelper).GetMethod(nameof(ServiceLocatorHelper.CreateService), BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
 
-        public MethodHandler(MagicOnionOptions options, Type classType, MethodInfo methodInfo)
+        public MethodHandler(Type classType, MethodInfo methodInfo, string methodName, MethodHandlerOptions handlerOptions)
         {
+            this.methodHandlerId = Interlocked.Increment(ref methodHandlerIdBuild);
+
+            var serviceInterfaceType = classType.GetInterfaces().First(x => x.GetTypeInfo().IsGenericType && x.GetGenericTypeDefinition() == typeof(IService<>)).GetGenericArguments()[0];
+
             this.ServiceType = classType;
-            this.ServiceName = classType.GetInterfaces().First(x => x.GetTypeInfo().IsGenericType && x.GetGenericTypeDefinition() == typeof(IService<>)).GetGenericArguments()[0].Name;
+            this.ServiceName = serviceInterfaceType.Name;
             this.MethodInfo = methodInfo;
+            this.MethodName = methodName;
             MethodType mt;
             this.UnwrappedResponseType = UnwrapResponseType(methodInfo, out mt, out responseIsTask, out this.RequestType);
             this.MethodType = mt;
-            this.resolver = options.FormatterResolver;
+            this.serializerOptions = handlerOptions.SerializerOptions;
 
             var parameters = methodInfo.GetParameters();
             if (RequestType == null)
             {
+                var resolver = this.serializerOptions.Resolver;
                 this.RequestType = MagicOnionMarshallers.CreateRequestTypeAndSetResolver(classType.Name + "/" + methodInfo.Name, parameters, ref resolver);
+                this.serializerOptions = this.serializerOptions.WithResolver(resolver);
             }
 
             this.AttributeLookup = classType.GetCustomAttributes(true)
@@ -63,21 +79,26 @@ namespace MagicOnion.Server
                 .Cast<Attribute>()
                 .ToLookup(x => x.GetType());
 
-            this.filters = options.GlobalFilters
-                .Concat(classType.GetCustomAttributes<MagicOnionFilterAttribute>(true))
-                .Concat(methodInfo.GetCustomAttributes<MagicOnionFilterAttribute>(true))
+            this.filters = handlerOptions.GlobalFilters
+                .OfType<IMagicOnionFilterFactory<MagicOnionFilterAttribute>>()
+                .Concat(classType.GetCustomAttributes<MagicOnionFilterAttribute>(true).Select(x => new MagicOnionServiceFilterDescriptor(x, x.Order)))
+                .Concat(classType.GetCustomAttributes(true).OfType<IMagicOnionFilterFactory<MagicOnionFilterAttribute>>())
+                .Concat(methodInfo.GetCustomAttributes<MagicOnionFilterAttribute>(true).Select(x => new MagicOnionServiceFilterDescriptor(x, x.Order)))
+                .Concat(methodInfo.GetCustomAttributes(true).OfType<IMagicOnionFilterFactory<MagicOnionFilterAttribute>>())
                 .OrderBy(x => x.Order)
                 .ToArray();
 
             // options
-            this.isReturnExceptionStackTraceInErrorDetail = options.IsReturnExceptionStackTraceInErrorDetail;
-            this.logger = options.MagicOnionLogger;
-            this.enableCurrentContext = options.EnableCurrentContext;
+            this.isReturnExceptionStackTraceInErrorDetail = handlerOptions.IsReturnExceptionStackTraceInErrorDetail;
+            this.logger = handlerOptions.Logger;
+            this.enableCurrentContext = handlerOptions.EnableCurrentContext;
+            this.serviceLocator = handlerOptions.ServiceLocator;
+            this.serviceActivator = handlerOptions.ServiceActivator;
 
             // prepare lambda parameters
+            var createServiceMethodInfo = createService.MakeGenericMethod(classType, serviceInterfaceType);
             var contextArg = Expression.Parameter(typeof(ServiceContext), "context");
-            var contextBind = Expression.Bind(classType.GetProperty("Context"), contextArg);
-            var instance = Expression.MemberInit(Expression.New(classType), contextBind);
+            var instance = Expression.Call(createServiceMethodInfo, contextArg);
 
             switch (MethodType)
             {
@@ -85,7 +106,7 @@ namespace MagicOnion.Server
                 case MethodType.ServerStreaming:
                     // (ServiceContext context) =>
                     // {
-                    //      var request = LZ4MessagePackSerializer.Deserialize<T>(context.Request, context.Resolver);
+                    //      var request = MessagePackSerializer.Deserialize<T>(context.Request, context.SerializerOptions, default);
                     //      var result = new FooService() { Context = context }.Bar(request.Item1, request.Item2);
                     //      return MethodHandlerResultHelper.SerializeUnaryResult(result, context);
                     // };
@@ -93,13 +114,14 @@ namespace MagicOnion.Server
                     {
                         var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
                         var staticFlags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
-
+                        
                         var requestArg = Expression.Parameter(RequestType, "request");
-                        var getResolver = Expression.Property(contextArg, typeof(ServiceContext).GetProperty("FormatterResolver", flags));
+                        var getSerializerOptions = Expression.Property(contextArg, typeof(ServiceContext).GetProperty("SerializerOptions", flags));
+                        var defaultToken = Expression.Default(typeof(CancellationToken));
 
                         var contextRequest = Expression.Property(contextArg, typeof(ServiceContext).GetProperty("Request", flags));
 
-                        var callDeserialize = Expression.Call(messagePackDeserialize.MakeGenericMethod(RequestType), contextRequest, getResolver);
+                        var callDeserialize = Expression.Call(messagePackDeserialize.MakeGenericMethod(RequestType), contextRequest, getSerializerOptions, defaultToken);
                         var assignRequest = Expression.Assign(requestArg, callDeserialize);
 
                         Expression[] arguments = new Expression[parameters.Length];
@@ -128,14 +150,22 @@ namespace MagicOnion.Server
                         {
                             if (!responseIsTask)
                             {
-                                callBody = Expression.Call(typeof(Task).GetMethod("FromResult").MakeGenericMethod(MethodInfo.ReturnType), callBody);
+                                callBody = Expression.Call(typeof(MethodHandlerResultHelper)
+                                    .GetMethod(nameof(MethodHandlerResultHelper.NewEmptyValueTask), staticFlags)
+                                    .MakeGenericMethod(MethodInfo.ReturnType), callBody);
+                            }
+                            else
+                            {
+                                callBody = Expression.Call(typeof(MethodHandlerResultHelper)
+                                    .GetMethod(nameof(MethodHandlerResultHelper.TaskToEmptyValueTask), staticFlags)
+                                    .MakeGenericMethod(MethodInfo.ReturnType.GetGenericArguments()[0]), callBody);
                             }
                         }
 
                         var body = Expression.Block(new[] { requestArg }, assignRequest, callBody);
                         var compiledBody = Expression.Lambda(body, contextArg).Compile();
 
-                        this.methodBody = BuildMethodBodyWithFilter((Func<ServiceContext, Task>)compiledBody);
+                        this.methodBody = BuildMethodBodyWithFilter((Func<ServiceContext, ValueTask>)compiledBody);
                     }
                     catch (Exception ex)
                     {
@@ -153,10 +183,10 @@ namespace MagicOnion.Server
                     try
                     {
                         var body = Expression.Call(instance, methodInfo);
+                        var staticFlags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
 
                         if (MethodType == MethodType.ClientStreaming)
                         {
-                            var staticFlags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
                             var finalMethod = (responseIsTask)
                                 ? typeof(MethodHandlerResultHelper).GetMethod("SerializeTaskClientStreamingResult", staticFlags).MakeGenericMethod(RequestType, UnwrappedResponseType)
                                 : typeof(MethodHandlerResultHelper).GetMethod("SerializeClientStreamingResult", staticFlags).MakeGenericMethod(RequestType, UnwrappedResponseType);
@@ -166,13 +196,21 @@ namespace MagicOnion.Server
                         {
                             if (!responseIsTask)
                             {
-                                body = Expression.Call(typeof(Task).GetMethod("FromResult").MakeGenericMethod(MethodInfo.ReturnType), body);
+                                body = Expression.Call(typeof(MethodHandlerResultHelper)
+                                    .GetMethod(nameof(MethodHandlerResultHelper.NewEmptyValueTask), staticFlags)
+                                    .MakeGenericMethod(MethodInfo.ReturnType), body);
+                            }
+                            else
+                            {
+                                body = Expression.Call(typeof(MethodHandlerResultHelper)
+                                    .GetMethod(nameof(MethodHandlerResultHelper.TaskToEmptyValueTask), staticFlags)
+                                    .MakeGenericMethod(MethodInfo.ReturnType.GetGenericArguments()[0]), body);
                             }
                         }
 
                         var compiledBody = Expression.Lambda(body, contextArg).Compile();
 
-                        this.methodBody = BuildMethodBodyWithFilter((Func<ServiceContext, Task>)compiledBody);
+                        this.methodBody = BuildMethodBodyWithFilter((Func<ServiceContext, ValueTask>)compiledBody);
                     }
                     catch (Exception ex)
                     {
@@ -187,12 +225,12 @@ namespace MagicOnion.Server
         // non-filtered.
         public byte[] BoxedSerialize(object requestValue)
         {
-            return LZ4MessagePackSerializer.NonGeneric.Serialize(RequestType, requestValue, resolver);
+            return MessagePackSerializer.Serialize(RequestType, requestValue, serializerOptions);
         }
 
         public object BoxedDeserialize(byte[] responseValue)
         {
-            return LZ4MessagePackSerializer.NonGeneric.Deserialize(UnwrappedResponseType, responseValue, resolver);
+            return MessagePackSerializer.Deserialize(UnwrappedResponseType, responseValue, serializerOptions);
         }
 
         static Type UnwrapResponseType(MethodInfo methodInfo, out MethodType methodType, out bool responseIsTask, out Type requestTypeIfExists)
@@ -245,23 +283,14 @@ namespace MagicOnion.Server
             }
         }
 
-        Func<ServiceContext, Task> BuildMethodBodyWithFilter(Func<ServiceContext, Task> methodBody)
+        Func<ServiceContext, ValueTask> BuildMethodBodyWithFilter(Func<ServiceContext, ValueTask> methodBody)
         {
-            var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-            Func<ServiceContext, Task> next = methodBody;
+            Func<ServiceContext, ValueTask> next = methodBody;
 
-            foreach (var filter in this.filters.Reverse())
+            foreach (var filterFactory in this.filters.Reverse())
             {
-                var fields = filter.GetType().GetFields(flags);
-
-                var newFilter = (MagicOnionFilterAttribute)Activator.CreateInstance(filter.GetType(), new object[] { next });
-                // copy all data.
-                foreach (var item in fields)
-                {
-                    item.SetValue(newFilter, item.GetValue(filter));
-                }
-
-                next = newFilter.Invoke;
+                var newFilter = filterFactory.CreateInstance(serviceLocator);
+                next = new InvokeHelper<ServiceContext, Func<ServiceContext, ValueTask>>(newFilter.Invoke, next).GetDelegate();
             }
 
             return next;
@@ -269,7 +298,7 @@ namespace MagicOnion.Server
 
         internal void RegisterHandler(ServerServiceDefinition.Builder builder)
         {
-            var method = new Method<byte[], byte[]>(this.MethodType, this.ServiceName, this.MethodInfo.Name, MagicOnionMarshallers.ThroughMarshaller, MagicOnionMarshallers.ThroughMarshaller);
+            var method = new Method<byte[], byte[]>(this.MethodType, this.ServiceName, this.MethodName, MagicOnionMarshallers.ThroughMarshaller, MagicOnionMarshallers.ThroughMarshaller);
 
             switch (this.MethodType)
             {
@@ -318,10 +347,9 @@ namespace MagicOnion.Server
         async Task<byte[]> UnaryServerMethod<TRequest, TResponse>(byte[] request, ServerCallContext context)
         {
             var isErrorOrInterrupted = false;
-            var serviceContext = new ServiceContext(ServiceType, MethodInfo, AttributeLookup, this.MethodType, context, resolver, logger)
-            {
-                Request = request
-            };
+            var serviceLocatorScope = serviceLocator.CreateScope();
+            var serviceContext = new ServiceContext(ServiceType, MethodInfo, AttributeLookup, this.MethodType, context, serializerOptions, logger, this, serviceLocatorScope.ServiceLocator, serviceActivator);
+            serviceContext.SetRawRequest(request);
 
             byte[] response = emptyBytes;
             try
@@ -378,6 +406,7 @@ namespace MagicOnion.Server
             finally
             {
                 logger.EndInvokeMethod(serviceContext, response, typeof(TResponse), (DateTime.UtcNow - serviceContext.Timestamp).TotalMilliseconds, isErrorOrInterrupted);
+                serviceLocatorScope.Dispose();
             }
 
             return response;
@@ -386,14 +415,15 @@ namespace MagicOnion.Server
         async Task<byte[]> ClientStreamingServerMethod<TRequest, TResponse>(IAsyncStreamReader<byte[]> requestStream, ServerCallContext context)
         {
             var isErrorOrInterrupted = false;
-            var serviceContext = new ServiceContext(ServiceType, MethodInfo, AttributeLookup, this.MethodType, context, resolver, logger)
+            var serviceLocatorScope = serviceLocator.CreateScope();
+            var serviceContext = new ServiceContext(ServiceType, MethodInfo, AttributeLookup, this.MethodType, context, serializerOptions, logger, this, serviceLocatorScope.ServiceLocator, serviceActivator)
             {
                 RequestStream = requestStream
             };
             byte[] response = emptyBytes;
             try
             {
-                using (requestStream)
+                using (requestStream as IDisposable)
                 {
                     logger.BeginInvokeMethod(serviceContext, emptyBytes, typeof(Nil));
                     if (enableCurrentContext)
@@ -427,6 +457,7 @@ namespace MagicOnion.Server
             finally
             {
                 logger.EndInvokeMethod(serviceContext, response, typeof(TResponse), (DateTime.UtcNow - serviceContext.Timestamp).TotalMilliseconds, isErrorOrInterrupted);
+                serviceLocatorScope.Dispose();
             }
             return response;
         }
@@ -434,11 +465,12 @@ namespace MagicOnion.Server
         async Task<byte[]> ServerStreamingServerMethod<TRequest, TResponse>(byte[] request, IServerStreamWriter<byte[]> responseStream, ServerCallContext context)
         {
             var isErrorOrInterrupted = false;
-            var serviceContext = new ServiceContext(ServiceType, MethodInfo, AttributeLookup, this.MethodType, context, resolver, logger)
+            var serviceLocatorScope = serviceLocator.CreateScope();
+            var serviceContext = new ServiceContext(ServiceType, MethodInfo, AttributeLookup, this.MethodType, context, serializerOptions, logger, this, serviceLocatorScope.ServiceLocator, serviceActivator)
             {
                 ResponseStream = responseStream,
-                Request = request
             };
+            serviceContext.SetRawRequest(request);
             try
             {
                 logger.BeginInvokeMethod(serviceContext, request, typeof(TRequest));
@@ -472,13 +504,15 @@ namespace MagicOnion.Server
             finally
             {
                 logger.EndInvokeMethod(serviceContext, emptyBytes, typeof(Nil), (DateTime.UtcNow - serviceContext.Timestamp).TotalMilliseconds, isErrorOrInterrupted);
+                serviceLocatorScope.Dispose();
             }
         }
 
         async Task<byte[]> DuplexStreamingServerMethod<TRequest, TResponse>(IAsyncStreamReader<byte[]> requestStream, IServerStreamWriter<byte[]> responseStream, ServerCallContext context)
         {
             var isErrorOrInterrupted = false;
-            var serviceContext = new ServiceContext(ServiceType, MethodInfo, AttributeLookup, this.MethodType, context, resolver, logger)
+            var serviceLocatorScope = serviceLocator.CreateScope();
+            var serviceContext = new ServiceContext(ServiceType, MethodInfo, AttributeLookup, this.MethodType, context, serializerOptions, logger, this, serviceLocatorScope.ServiceLocator, serviceActivator)
             {
                 RequestStream = requestStream,
                 ResponseStream = responseStream
@@ -486,7 +520,7 @@ namespace MagicOnion.Server
             try
             {
                 logger.BeginInvokeMethod(serviceContext, emptyBytes, typeof(Nil));
-                using (requestStream)
+                using (requestStream as IDisposable)
                 {
                     if (enableCurrentContext)
                     {
@@ -520,6 +554,7 @@ namespace MagicOnion.Server
             finally
             {
                 logger.EndInvokeMethod(serviceContext, emptyBytes, typeof(Nil), (DateTime.UtcNow - serviceContext.Timestamp).TotalMilliseconds, isErrorOrInterrupted);
+                serviceLocatorScope.Dispose();
             }
         }
 
@@ -542,53 +577,108 @@ namespace MagicOnion.Server
         {
             return ServiceName.Equals(other.ServiceName) && MethodInfo.Name.Equals(other.MethodInfo.Name);
         }
+
+        public class UniqueEqualityComparer : IEqualityComparer<MethodHandler>
+        {
+            public bool Equals(MethodHandler x, MethodHandler y)
+            {
+                return x.methodHandlerId.Equals(y.methodHandlerId);
+            }
+
+            public int GetHashCode(MethodHandler obj)
+            {
+                return obj.methodHandlerId.GetHashCode();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Options for MethodHandler construction.
+    /// </summary>
+    public class MethodHandlerOptions
+    {
+        public IList<MagicOnionServiceFilterDescriptor> GlobalFilters { get; }
+
+        public bool IsReturnExceptionStackTraceInErrorDetail { get; }
+
+        public bool EnableCurrentContext { get; }
+
+        public IMagicOnionLogger Logger { get; }
+
+        public MessagePackSerializerOptions SerializerOptions { get; }
+
+        public IServiceLocator ServiceLocator { get; }
+
+        public IMagicOnionServiceActivator ServiceActivator { get; }
+
+        public MethodHandlerOptions(MagicOnionOptions options)
+        {
+            GlobalFilters = options.GlobalFilters;
+            IsReturnExceptionStackTraceInErrorDetail = options.IsReturnExceptionStackTraceInErrorDetail;
+            EnableCurrentContext = options.EnableCurrentContext;
+            Logger = options.MagicOnionLogger;
+            SerializerOptions = options.SerializerOptions;
+            ServiceLocator = options.ServiceLocator;
+            ServiceActivator = options.MagicOnionServiceActivator;
+        }
     }
 
     internal class MethodHandlerResultHelper
     {
-        public static async Task SerializeUnaryResult<T>(UnaryResult<T> result, ServiceContext context)
+        static readonly ValueTask CopmletedValueTask = new ValueTask();
+
+        public static ValueTask NewEmptyValueTask<T>(T result)
+        {
+            // ignore result.
+            return CopmletedValueTask;
+        }
+
+        public static async ValueTask TaskToEmptyValueTask<T>(Task<T> result)
+        {
+            // wait and ignore result.
+            await result;
+        }
+
+        public static async ValueTask SerializeUnaryResult<T>(UnaryResult<T> result, ServiceContext context)
         {
             if (result.hasRawValue && !context.IsIgnoreSerialization)
             {
                 var value = (result.rawTaskValue != null) ? await result.rawTaskValue.ConfigureAwait(false) : result.rawValue;
 
-                var bytes = LZ4MessagePackSerializer.Serialize<T>(value, context.FormatterResolver);
+                var bytes = MessagePackSerializer.Serialize<T>(value, context.SerializerOptions);
                 context.Result = bytes;
             }
         }
 
-        public static async Task SerializeTaskUnaryResult<T>(Task<UnaryResult<T>> taskResult, ServiceContext context)
+        public static async ValueTask SerializeTaskUnaryResult<T>(Task<UnaryResult<T>> taskResult, ServiceContext context)
         {
             var result = await taskResult.ConfigureAwait(false);
             if (result.hasRawValue && !context.IsIgnoreSerialization)
             {
                 var value = (result.rawTaskValue != null) ? await result.rawTaskValue.ConfigureAwait(false) : result.rawValue;
 
-                var bytes = LZ4MessagePackSerializer.Serialize<T>(value, context.FormatterResolver);
+                var bytes = MessagePackSerializer.Serialize<T>(value, context.SerializerOptions);
                 context.Result = bytes;
             }
         }
 
-        public static Task SerializeClientStreamingResult<TRequest, TResponse>(ClientStreamingResult<TRequest, TResponse> result, ServiceContext context)
+        public static ValueTask SerializeClientStreamingResult<TRequest, TResponse>(ClientStreamingResult<TRequest, TResponse> result, ServiceContext context)
         {
             if (result.hasRawValue)
             {
-                var bytes = LZ4MessagePackSerializer.Serialize<TResponse>(result.rawValue, context.FormatterResolver);
+                var bytes = MessagePackSerializer.Serialize<TResponse>(result.rawValue, context.SerializerOptions);
                 context.Result = bytes;
             }
-#if !NET45
-            return Task.CompletedTask;
-#else
-            return Task.FromResult(0);
-#endif
+
+            return default(ValueTask);
         }
 
-        public static async Task SerializeTaskClientStreamingResult<TRequest, TResponse>(Task<ClientStreamingResult<TRequest, TResponse>> taskResult, ServiceContext context)
+        public static async ValueTask SerializeTaskClientStreamingResult<TRequest, TResponse>(Task<ClientStreamingResult<TRequest, TResponse>> taskResult, ServiceContext context)
         {
             var result = await taskResult.ConfigureAwait(false);
             if (result.hasRawValue)
             {
-                var bytes = LZ4MessagePackSerializer.Serialize<TResponse>(result.rawValue, context.FormatterResolver);
+                var bytes = MessagePackSerializer.Serialize<TResponse>(result.rawValue, context.SerializerOptions);
                 context.Result = bytes;
             }
         }

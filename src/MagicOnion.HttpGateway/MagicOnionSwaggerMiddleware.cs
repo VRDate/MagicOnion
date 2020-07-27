@@ -1,9 +1,6 @@
-﻿using MagicOnion.HttpGateway.Swagger;
+using MagicOnion.HttpGateway.Swagger;
 using MagicOnion.Server;
 using Microsoft.AspNetCore.Http;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -27,7 +24,7 @@ namespace MagicOnion.HttpGateway
             this.options = options;
         }
 
-        public Task Invoke(HttpContext httpContext)
+        public async Task Invoke(HttpContext httpContext)
         {
             // reference embedded resouces
             const string prefix = "MagicOnion.HttpGateway.Swagger.SwaggerUI.";
@@ -43,8 +40,8 @@ namespace MagicOnion.HttpGateway
                 var bytes = builder.BuildSwaggerJson();
                 httpContext.Response.Headers["Content-Type"] = new[] { "application/json" };
                 httpContext.Response.StatusCode = 200;
-                httpContext.Response.Body.Write(bytes, 0, bytes.Length);
-                return EmptyTask;
+                await httpContext.Response.Body.WriteAsync(bytes, 0, bytes.Length);
+                return;
             }
 
             var myAssembly = typeof(MagicOnionSwaggerMiddleware).GetTypeInfo().Assembly;
@@ -56,13 +53,14 @@ namespace MagicOnion.HttpGateway
                     if (stream == null)
                     {
                         // not found, standard request.
-                        return next(httpContext);
+                        await next(httpContext);
+                        return;
                     }
 
                     httpContext.Response.Headers["Content-Type"] = new[] { mediaType };
                     httpContext.Response.StatusCode = 200;
                     var response = httpContext.Response.Body;
-                    stream.CopyTo(response);
+                    await stream.CopyToAsync(response);
                 }
                 else
                 {
@@ -75,7 +73,7 @@ namespace MagicOnion.HttpGateway
                     {
                         using (var ms = new MemoryStream())
                         {
-                            stream.CopyTo(ms);
+                            await stream.CopyToAsync(ms);
                             bytes = options.ResolveCustomResource(path, ms.ToArray());
                         }
                     }
@@ -83,18 +81,16 @@ namespace MagicOnion.HttpGateway
                     if (bytes == null)
                     {
                         // not found, standard request.
-                        return next(httpContext);
+                        await next(httpContext);
+                        return;
                     }
 
                     httpContext.Response.Headers["Content-Type"] = new[] { mediaType };
                     httpContext.Response.StatusCode = 200;
                     var response = httpContext.Response.Body;
-                    response.Write(bytes, 0, bytes.Length);
+                    await response.WriteAsync(bytes, 0, bytes.Length);
                 }
             }
-
-
-            return EmptyTask;
         }
 
         static string GetMediaType(string path)

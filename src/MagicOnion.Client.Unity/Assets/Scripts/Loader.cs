@@ -1,4 +1,6 @@
-﻿using RuntimeUnitTestToolkit;
+﻿#if FALSE
+
+using RuntimeUnitTestToolkit;
 using UnityEngine;
 using System.Collections;
 using SharedLibrary;
@@ -9,7 +11,6 @@ using System.IO;
 using System.Text;
 using Grpc.Core;
 using MagicOnion.Client;
-using MagicOnion.Resolvers;
 using MessagePack.Resolvers;
 
 namespace MagicOnion.Tests
@@ -20,10 +21,10 @@ namespace MagicOnion.Tests
         public static void Register()
         {
             // Register First
-            MagicOnionInitializer.Register();
+            // MagicOnionInitializer.Register();
 
             MessagePack.Resolvers.CompositeResolver.RegisterAndSetAsDefault(
-                MagicOnionResolver.Instance,
+          //      MagicOnionResolver.Instance,
                 BuiltinResolver.Instance,
                 // Note:needs MessagePack generated resolver
                 StandardResolver.Instance);
@@ -42,7 +43,7 @@ namespace MagicOnion.Tests
             // Debugger Attached, avoid UnityEditor crash
             if (System.Diagnostics.Debugger.IsAttached)
             {
-                Grpc.Core.GrpcEnvironment.IsDebugging = true;
+               // Grpc.Core.GrpcEnvironment.IsDebugging = true;
             }
 #endif
 
@@ -52,11 +53,11 @@ namespace MagicOnion.Tests
             Grpc.Core.GrpcEnvironment.SetLogger(new MagicOnion.UnityDebugLogger());
 
             // Register Tests
-            UnitTest.RegisterAllMethods<SimpleTest>();
-            UnitTest.RegisterAllMethods<StandardTest>();
-            UnitTest.RegisterAllMethods<ArgumentPatternTest>();
-            UnitTest.RegisterAllMethods<HeartbeatTest>();
-            UnitTest.RegisterAllMethods<MetadataTest>();
+            //UnitTest.RegisterAllMethods<SimpleTest>();
+            //UnitTest.RegisterAllMethods<StandardTest>();
+            //UnitTest.RegisterAllMethods<ArgumentPatternTest>();
+            //UnitTest.RegisterAllMethods<HeartbeatTest>();
+            //UnitTest.RegisterAllMethods<MetadataTest>();
         }
     }
 
@@ -80,3 +81,5 @@ namespace MagicOnion.Tests
         }
     }
 }
+
+#endif
