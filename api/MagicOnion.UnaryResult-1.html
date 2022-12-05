@@ -9,7 +9,7 @@
     <meta name="viewport" content="width=device-width">
     <meta name="title" content="UnaryResult&lt;TResponse&gt; Struct
    | MagicOnion ">
-    <meta name="generator" content="docfx 2.51.0.0">
+    <meta name="generator" content="docfx 2.59.2.0">
     
     <link rel="shortcut icon" href="../img/favicon.ico">
     <link rel="stylesheet" href="../styles/docfx.vendor.css">
@@ -78,12 +78,12 @@
   <h6><strong>Namespace</strong>: <a class="xref" href="MagicOnion.html">MagicOnion</a></h6>
   <h6><strong>Assembly</strong>: MagicOnion.Abstractions.dll</h6>
   
-  <div class="markdown level0 summary"><p>Wrapped AsyncUnaryCall.</p>
+  <div class="markdown level0 summary"><p>Represents the result of a Unary call that wraps AsyncUnaryCall as Task-like.</p>
 </div>
   <div class="markdown level0 conceptual"></div>
   
   <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public struct UnaryResult&lt;TResponse&gt;</code></pre>
+    <pre><code class="lang-csharp hljs">public readonly struct UnaryResult&lt;TResponse&gt;</code></pre>
   </div>
 
   
@@ -305,7 +305,7 @@ Throws InvalidOperationException otherwise.</p>
   <div class="markdown level1 conceptual"></div>
   
   <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public Task&lt;TResponse&gt; ResponseAsync { get; }</code></pre>
+    <pre><code class="lang-csharp hljs">public readonly Task&lt;TResponse&gt; ResponseAsync { get; }</code></pre>
   </div>
 
   
@@ -336,7 +336,7 @@ Throws InvalidOperationException otherwise.</p>
   <div class="markdown level1 conceptual"></div>
   
   <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public Task&lt;Metadata&gt; ResponseHeadersAsync { get; }</code></pre>
+    <pre><code class="lang-csharp hljs">public readonly Task&lt;Metadata&gt; ResponseHeadersAsync { get; }</code></pre>
   </div>
 
   
@@ -372,7 +372,7 @@ As a result, all resources being used by the call should be released eventually.
   <div class="markdown level1 conceptual"></div>
   
   <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public void Dispose()</code></pre>
+    <pre><code class="lang-csharp hljs">public readonly void Dispose()</code></pre>
   </div>
 
   
@@ -400,7 +400,7 @@ As a result, all resources being used by the call should be released eventually.
   <div class="markdown level1 conceptual"></div>
   
   <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public TaskAwaiter&lt;TResponse&gt; GetAwaiter()</code></pre>
+    <pre><code class="lang-csharp hljs">public readonly TaskAwaiter&lt;TResponse&gt; GetAwaiter()</code></pre>
   </div>
 
   
@@ -432,7 +432,7 @@ Throws InvalidOperationException otherwise.</p>
   <div class="markdown level1 conceptual"></div>
   
   <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public Status GetStatus()</code></pre>
+    <pre><code class="lang-csharp hljs">public readonly Status GetStatus()</code></pre>
   </div>
 
   
@@ -464,7 +464,7 @@ Throws InvalidOperationException otherwise.</p>
   <div class="markdown level1 conceptual"></div>
   
   <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public Metadata GetTrailers()</code></pre>
+    <pre><code class="lang-csharp hljs">public readonly Metadata GetTrailers()</code></pre>
   </div>
 
   

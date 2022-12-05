@@ -4,12 +4,12 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-    <title>AllowAnonymousAttribute Class
+    <title>IRpcScope Interface
    | MagicOnion </title>
     <meta name="viewport" content="width=device-width">
-    <meta name="title" content="AllowAnonymousAttribute Class
+    <meta name="title" content="IRpcScope Interface
    | MagicOnion ">
-    <meta name="generator" content="docfx 2.51.0.0">
+    <meta name="generator" content="docfx 2.59.2.0">
     
     <link rel="shortcut icon" href="../img/favicon.ico">
     <link rel="stylesheet" href="../styles/docfx.vendor.css">
@@ -71,27 +71,21 @@
         </div>
         <div class="article row grid-right">
           <div class="col-md-10">
-            <article class="content wrap" id="_content" data-uid="MagicOnion.Server.Authentication.AllowAnonymousAttribute">
+            <article class="content wrap" id="_content" data-uid="MagicOnion.Server.OpenTelemetry.IRpcScope">
   
-  <h1 id="MagicOnion_Server_Authentication_AllowAnonymousAttribute" data-uid="MagicOnion.Server.Authentication.AllowAnonymousAttribute" class="text-break">AllowAnonymousAttribute Class
+  <h1 id="MagicOnion_Server_OpenTelemetry_IRpcScope" data-uid="MagicOnion.Server.OpenTelemetry.IRpcScope" class="text-break">IRpcScope Interface
   </h1>
-  <h6><strong>Namespace</strong>: <a class="xref" href="MagicOnion.Server.Authentication.html">MagicOnion.Server.Authentication</a></h6>
-  <h6><strong>Assembly</strong>: MagicOnion.Server.Authentication.dll</h6>
+  <h6><strong>Namespace</strong>: <a class="xref" href="MagicOnion.Server.OpenTelemetry.html">MagicOnion.Server.OpenTelemetry</a></h6>
+  <h6><strong>Assembly</strong>: MagicOnion.Server.OpenTelemetry.dll</h6>
   
-  <div class="markdown level0 summary"><p>Specifies that the class or method that this attribute is applied to does not require authorization.</p>
+  <div class="markdown level0 summary"><p>Manage trace activity scope for this Rpc</p>
 </div>
   <div class="markdown level0 conceptual"></div>
   
   <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public class AllowAnonymousAttribute : MagicOnionFilterAttribute</code></pre>
+    <pre><code class="lang-csharp hljs">public interface IRpcScope</code></pre>
   </div>
 
-  <div class="inheritance">
-    <h5>Inheritance</h5>
-    <span><span class="xref">System.Object</span></span> → 
-    <span><a class="xref" href="MagicOnion.Server.MagicOnionFilterAttribute.html">MagicOnionFilterAttribute</a></span> → 
-    <span class="xref">AllowAnonymousAttribute</span>
-  </div>
   
   
   
@@ -112,9 +106,10 @@
     <tbody>
       <tr>
         <td>
-          <a class="xref" href="MagicOnion.Server.Authentication.AllowAnonymousAttribute.html#MagicOnion_Server_Authentication_AllowAnonymousAttribute_Invoke_MagicOnion_Server_ServiceContext_Func_MagicOnion_Server_ServiceContext_ValueTask__">Invoke(ServiceContext, Func&lt;ServiceContext, ValueTask&gt;)</a>
+          <a class="xref" href="MagicOnion.Server.OpenTelemetry.IRpcScope.html#MagicOnion_Server_OpenTelemetry_IRpcScope_SetTags_IDictionary_System_String_System_String__">SetTags(IDictionary&lt;String, String&gt;)</a>
         </td>
-        <td class="markdown level1 summary"></td>
+        <td class="markdown level1 summary"><p>Set custom tag to the activity.</p>
+</td>
       </tr>
     </tbody>
   </table>
@@ -122,32 +117,24 @@
   <h3 id="methods">Methods
   </h3>
   <section>
-  <a id="MagicOnion_Server_Authentication_AllowAnonymousAttribute_Invoke_" data-uid="MagicOnion.Server.Authentication.AllowAnonymousAttribute.Invoke*"></a>
-  <h4 id="MagicOnion_Server_Authentication_AllowAnonymousAttribute_Invoke_MagicOnion_Server_ServiceContext_Func_MagicOnion_Server_ServiceContext_ValueTask__" data-uid="MagicOnion.Server.Authentication.AllowAnonymousAttribute.Invoke(MagicOnion.Server.ServiceContext,Func{MagicOnion.Server.ServiceContext,ValueTask})">Invoke(ServiceContext, Func&lt;ServiceContext, ValueTask&gt;)</h4>
-  <div class="markdown level1 summary"></div>
+  <a id="MagicOnion_Server_OpenTelemetry_IRpcScope_SetTags_" data-uid="MagicOnion.Server.OpenTelemetry.IRpcScope.SetTags*"></a>
+  <h4 id="MagicOnion_Server_OpenTelemetry_IRpcScope_SetTags_IDictionary_System_String_System_String__" data-uid="MagicOnion.Server.OpenTelemetry.IRpcScope.SetTags(IDictionary{System.String,System.String})">SetTags(IDictionary&lt;String, String&gt;)</h4>
+  <div class="markdown level1 summary"><p>Set custom tag to the activity.</p>
+</div>
   <div class="markdown level1 conceptual"></div>
   
   <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public override ValueTask Invoke(ServiceContext context, Func&lt;ServiceContext, ValueTask&gt; next)</code></pre>
+    <pre><code class="lang-csharp hljs">void SetTags(IDictionary&lt;string, string&gt; tags)</code></pre>
   </div>
 
   <section>
   <h5 class="parameters">Parameters</h5>
   <dl class="cysharpdocfx-valuedefinition">
-    <dt><span class="parametername"><code>context</code></span> <a class="xref" href="MagicOnion.Server.ServiceContext.html">ServiceContext</a></dt>
-    <dd></dd>
-    <dt><span class="parametername"><code>next</code></span> <span class="xref">Func</span>&lt;<a class="xref" href="MagicOnion.Server.ServiceContext.html">ServiceContext</a>, <span class="xref">ValueTask</span>&gt;</dt>
+    <dt><span class="parametername"><code>tags</code></span> <span class="xref">IDictionary</span>&lt;<span class="xref">System.String</span>, <span class="xref">System.String</span>&gt;</dt>
     <dd></dd>
   </dl>
   </section>
   
-  <section>
-  <h5 class="returns">Returns</h5>
-  <dl class="cysharpdocfx-valuedefinition">
-    <dt><span class="xref">ValueTask</span></dt>
-    <dd></dd>
-  </dl>
-  </section>
   
   
   

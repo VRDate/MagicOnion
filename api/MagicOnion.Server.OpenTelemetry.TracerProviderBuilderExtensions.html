@@ -4,12 +4,12 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-    <title>OpenTelemetryHubCollectorFilterFactoryAttribute Class
+    <title>TracerProviderBuilderExtensions Class
    | MagicOnion </title>
     <meta name="viewport" content="width=device-width">
-    <meta name="title" content="OpenTelemetryHubCollectorFilterFactoryAttribute Class
+    <meta name="title" content="TracerProviderBuilderExtensions Class
    | MagicOnion ">
-    <meta name="generator" content="docfx 2.51.0.0">
+    <meta name="generator" content="docfx 2.59.2.0">
     
     <link rel="shortcut icon" href="../img/favicon.ico">
     <link rel="stylesheet" href="../styles/docfx.vendor.css">
@@ -71,31 +71,26 @@
         </div>
         <div class="article row grid-right">
           <div class="col-md-10">
-            <article class="content wrap" id="_content" data-uid="MagicOnion.Server.OpenTelemetry.OpenTelemetryHubCollectorFilterFactoryAttribute">
+            <article class="content wrap" id="_content" data-uid="MagicOnion.Server.OpenTelemetry.TracerProviderBuilderExtensions">
   
-  <h1 id="MagicOnion_Server_OpenTelemetry_OpenTelemetryHubCollectorFilterFactoryAttribute" data-uid="MagicOnion.Server.OpenTelemetry.OpenTelemetryHubCollectorFilterFactoryAttribute" class="text-break">OpenTelemetryHubCollectorFilterFactoryAttribute Class
+  <h1 id="MagicOnion_Server_OpenTelemetry_TracerProviderBuilderExtensions" data-uid="MagicOnion.Server.OpenTelemetry.TracerProviderBuilderExtensions" class="text-break">TracerProviderBuilderExtensions Class
   </h1>
   <h6><strong>Namespace</strong>: <a class="xref" href="MagicOnion.Server.OpenTelemetry.html">MagicOnion.Server.OpenTelemetry</a></h6>
   <h6><strong>Assembly</strong>: MagicOnion.Server.OpenTelemetry.dll</h6>
   
-  <div class="markdown level0 summary"><p>Collect OpenTelemetry Tracing for StreamingHub Filter. Handle Streaming Hub logging.</p>
-</div>
+  <div class="markdown level0 summary"></div>
   <div class="markdown level0 conceptual"></div>
   
   <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public class OpenTelemetryHubCollectorFilterFactoryAttribute : Attribute, IMagicOnionFilterFactory&lt;StreamingHubFilterAttribute&gt;</code></pre>
+    <pre><code class="lang-csharp hljs">public static class TracerProviderBuilderExtensions : object</code></pre>
   </div>
 
   <div class="inheritance">
     <h5>Inheritance</h5>
     <span><span class="xref">System.Object</span></span> → 
-    <span class="xref">OpenTelemetryHubCollectorFilterFactoryAttribute</span>
+    <span class="xref">TracerProviderBuilderExtensions</span>
   </div>
   
-  <div classs="implements">
-    <h5>Implements</h5>
-    <div><a class="xref" href="MagicOnion.Server.IMagicOnionFilterFactory-1.html">IMagicOnionFilterFactory</a>&lt;<a class="xref" href="MagicOnion.Server.Hubs.StreamingHubFilterAttribute.html">StreamingHubFilterAttribute</a>&gt;</div>
-  </div>
   
   
   
@@ -103,7 +98,7 @@
   
   
   <h3 id="members">Members</h3>
-  <h4>Properties
+  <h4>Methods
   </h4>
   <table class="table table-condensed">
     <thead>
@@ -115,33 +110,37 @@
     <tbody>
       <tr>
         <td>
-          <a class="xref" href="MagicOnion.Server.OpenTelemetry.OpenTelemetryHubCollectorFilterFactoryAttribute.html#MagicOnion_Server_OpenTelemetry_OpenTelemetryHubCollectorFilterFactoryAttribute_Order">Order</a>
+          <a class="xref" href="MagicOnion.Server.OpenTelemetry.TracerProviderBuilderExtensions.html#MagicOnion_Server_OpenTelemetry_TracerProviderBuilderExtensions_AddMagicOnionInstrumentation_TracerProviderBuilder_">AddMagicOnionInstrumentation(TracerProviderBuilder)</a>
         </td>
         <td class="markdown level1 summary"></td>
       </tr>
     </tbody>
   </table>
   
-  <h3 id="properties">Properties
+  <h3 id="methods">Methods
   </h3>
   <section>
-  <a id="MagicOnion_Server_OpenTelemetry_OpenTelemetryHubCollectorFilterFactoryAttribute_Order_" data-uid="MagicOnion.Server.OpenTelemetry.OpenTelemetryHubCollectorFilterFactoryAttribute.Order*"></a>
-  <h4 id="MagicOnion_Server_OpenTelemetry_OpenTelemetryHubCollectorFilterFactoryAttribute_Order" data-uid="MagicOnion.Server.OpenTelemetry.OpenTelemetryHubCollectorFilterFactoryAttribute.Order">Order</h4>
+  <a id="MagicOnion_Server_OpenTelemetry_TracerProviderBuilderExtensions_AddMagicOnionInstrumentation_" data-uid="MagicOnion.Server.OpenTelemetry.TracerProviderBuilderExtensions.AddMagicOnionInstrumentation*"></a>
+  <h4 id="MagicOnion_Server_OpenTelemetry_TracerProviderBuilderExtensions_AddMagicOnionInstrumentation_TracerProviderBuilder_" data-uid="MagicOnion.Server.OpenTelemetry.TracerProviderBuilderExtensions.AddMagicOnionInstrumentation(TracerProviderBuilder)">AddMagicOnionInstrumentation(TracerProviderBuilder)</h4>
   <div class="markdown level1 summary"></div>
   <div class="markdown level1 conceptual"></div>
   
   <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public int Order { get; set; }</code></pre>
+    <pre><code class="lang-csharp hljs">public static TracerProviderBuilder AddMagicOnionInstrumentation(this TracerProviderBuilder builder)</code></pre>
   </div>
 
-  
-  
-  
+  <section>
+  <h5 class="parameters">Parameters</h5>
+  <dl class="cysharpdocfx-valuedefinition">
+    <dt><span class="parametername"><code>builder</code></span> <span class="xref">TracerProviderBuilder</span></dt>
+    <dd></dd>
+  </dl>
+  </section>
   
   <section>
-  <h5 class="propertyValue">Property Value</h5>
+  <h5 class="returns">Returns</h5>
   <dl class="cysharpdocfx-valuedefinition">
-    <dt><span class="xref">System.Int32</span></dt>
+    <dt><span class="xref">TracerProviderBuilder</span></dt>
     <dd></dd>
   </dl>
   </section>
@@ -153,12 +152,11 @@
   
   
   
+  
+  
+  
   </section>
   
-  <h3 id="implements">Implements</h3>
-  <div>
-      <a class="xref" href="MagicOnion.Server.IMagicOnionFilterFactory-1.html">IMagicOnionFilterFactory&lt;T&gt;</a>
-  </div>
   
   
 </article>

@@ -4,12 +4,12 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-    <title>ServiceContextAuthenticationExtensions Class
+    <title>MagicOnionOpenTelemetryStreamingTracerFilterFactoryAttribute Class
    | MagicOnion </title>
     <meta name="viewport" content="width=device-width">
-    <meta name="title" content="ServiceContextAuthenticationExtensions Class
+    <meta name="title" content="MagicOnionOpenTelemetryStreamingTracerFilterFactoryAttribute Class
    | MagicOnion ">
-    <meta name="generator" content="docfx 2.51.0.0">
+    <meta name="generator" content="docfx 2.59.2.0">
     
     <link rel="shortcut icon" href="../img/favicon.ico">
     <link rel="stylesheet" href="../styles/docfx.vendor.css">
@@ -71,26 +71,31 @@
         </div>
         <div class="article row grid-right">
           <div class="col-md-10">
-            <article class="content wrap" id="_content" data-uid="MagicOnion.Server.ServiceContextAuthenticationExtensions">
+            <article class="content wrap" id="_content" data-uid="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryStreamingTracerFilterFactoryAttribute">
   
-  <h1 id="MagicOnion_Server_ServiceContextAuthenticationExtensions" data-uid="MagicOnion.Server.ServiceContextAuthenticationExtensions" class="text-break">ServiceContextAuthenticationExtensions Class
+  <h1 id="MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryStreamingTracerFilterFactoryAttribute" data-uid="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryStreamingTracerFilterFactoryAttribute" class="text-break">MagicOnionOpenTelemetryStreamingTracerFilterFactoryAttribute Class
   </h1>
-  <h6><strong>Namespace</strong>: <a class="xref" href="MagicOnion.Server.html">MagicOnion.Server</a></h6>
-  <h6><strong>Assembly</strong>: MagicOnion.Server.Authentication.dll</h6>
+  <h6><strong>Namespace</strong>: <a class="xref" href="MagicOnion.Server.OpenTelemetry.html">MagicOnion.Server.OpenTelemetry</a></h6>
+  <h6><strong>Assembly</strong>: MagicOnion.Server.OpenTelemetry.dll</h6>
   
-  <div class="markdown level0 summary"></div>
+  <div class="markdown level0 summary"><p>Collect OpenTelemetry Tracer with Server filter (StreamingHub).</p>
+</div>
   <div class="markdown level0 conceptual"></div>
   
   <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public static class ServiceContextAuthenticationExtensions : object</code></pre>
+    <pre><code class="lang-csharp hljs">public class MagicOnionOpenTelemetryStreamingTracerFilterFactoryAttribute : Attribute, IMagicOnionFilterFactory&lt;StreamingHubFilterAttribute&gt;</code></pre>
   </div>
 
   <div class="inheritance">
     <h5>Inheritance</h5>
     <span><span class="xref">System.Object</span></span> → 
-    <span class="xref">ServiceContextAuthenticationExtensions</span>
+    <span class="xref">MagicOnionOpenTelemetryStreamingTracerFilterFactoryAttribute</span>
   </div>
   
+  <div classs="implements">
+    <h5>Implements</h5>
+    <div><a class="xref" href="MagicOnion.Server.IMagicOnionFilterFactory-1.html">IMagicOnionFilterFactory</a>&lt;<a class="xref" href="MagicOnion.Server.Hubs.StreamingHubFilterAttribute.html">StreamingHubFilterAttribute</a>&gt;</div>
+  </div>
   
   
   
@@ -98,7 +103,7 @@
   
   
   <h3 id="members">Members</h3>
-  <h4>Methods
+  <h4>Properties
   </h4>
   <table class="table table-condensed">
     <thead>
@@ -110,46 +115,37 @@
     <tbody>
       <tr>
         <td>
-          <a class="xref" href="MagicOnion.Server.ServiceContextAuthenticationExtensions.html#MagicOnion_Server_ServiceContextAuthenticationExtensions_GetPrincipal_MagicOnion_Server_ServiceContext_">GetPrincipal(ServiceContext)</a>
+          <a class="xref" href="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryStreamingTracerFilterFactoryAttribute.html#MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryStreamingTracerFilterFactoryAttribute_Order">Order</a>
         </td>
-        <td class="markdown level1 summary"><p>Gets the principal associated with this service context.</p>
-</td>
+        <td class="markdown level1 summary"></td>
       </tr>
     </tbody>
   </table>
   
-  <h3 id="methods">Methods
+  <h3 id="properties">Properties
   </h3>
   <section>
-  <a id="MagicOnion_Server_ServiceContextAuthenticationExtensions_GetPrincipal_" data-uid="MagicOnion.Server.ServiceContextAuthenticationExtensions.GetPrincipal*"></a>
-  <h4 id="MagicOnion_Server_ServiceContextAuthenticationExtensions_GetPrincipal_MagicOnion_Server_ServiceContext_" data-uid="MagicOnion.Server.ServiceContextAuthenticationExtensions.GetPrincipal(MagicOnion.Server.ServiceContext)">GetPrincipal(ServiceContext)</h4>
-  <div class="markdown level1 summary"><p>Gets the principal associated with this service context.</p>
-</div>
+  <a id="MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryStreamingTracerFilterFactoryAttribute_Order_" data-uid="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryStreamingTracerFilterFactoryAttribute.Order*"></a>
+  <h4 id="MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryStreamingTracerFilterFactoryAttribute_Order" data-uid="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryStreamingTracerFilterFactoryAttribute.Order">Order</h4>
+  <div class="markdown level1 summary"></div>
   <div class="markdown level1 conceptual"></div>
   
   <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public static IPrincipal GetPrincipal(this ServiceContext context)</code></pre>
+    <pre><code class="lang-csharp hljs">public int Order { get; set; }</code></pre>
   </div>
 
+  
+  
+  
+  
   <section>
-  <h5 class="parameters">Parameters</h5>
+  <h5 class="propertyValue">Property Value</h5>
   <dl class="cysharpdocfx-valuedefinition">
-    <dt><span class="parametername"><code>context</code></span> <a class="xref" href="MagicOnion.Server.ServiceContext.html">ServiceContext</a></dt>
+    <dt><span class="xref">System.Int32</span></dt>
     <dd></dd>
   </dl>
   </section>
   
-  <section>
-  <h5 class="returns">Returns</h5>
-  <dl class="cysharpdocfx-valuedefinition">
-    <dt><span class="xref">IPrincipal</span></dt>
-    <dd></dd>
-  </dl>
-  </section>
-  
-  
-  
-  
   
   
   
@@ -159,6 +155,10 @@
   
   </section>
   
+  <h3 id="implements">Implements</h3>
+  <div>
+      <a class="xref" href="MagicOnion.Server.IMagicOnionFilterFactory-1.html">IMagicOnionFilterFactory&lt;T&gt;</a>
+  </div>
   
   
 </article>

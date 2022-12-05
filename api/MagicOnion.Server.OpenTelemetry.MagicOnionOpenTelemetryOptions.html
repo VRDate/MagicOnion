@@ -9,7 +9,7 @@
     <meta name="viewport" content="width=device-width">
     <meta name="title" content="MagicOnionOpenTelemetryOptions Class
    | MagicOnion ">
-    <meta name="generator" content="docfx 2.51.0.0">
+    <meta name="generator" content="docfx 2.59.2.0">
     
     <link rel="shortcut icon" href="../img/favicon.ico">
     <link rel="stylesheet" href="../styles/docfx.vendor.css">
@@ -78,7 +78,8 @@
   <h6><strong>Namespace</strong>: <a class="xref" href="MagicOnion.Server.OpenTelemetry.html">MagicOnion.Server.OpenTelemetry</a></h6>
   <h6><strong>Assembly</strong>: MagicOnion.Server.OpenTelemetry.dll</h6>
   
-  <div class="markdown level0 summary"></div>
+  <div class="markdown level0 summary"><p>OpenTelemetry Options to inject Application Information</p>
+</div>
   <div class="markdown level0 conceptual"></div>
   
   <div class="codewrapper">
@@ -110,30 +111,23 @@
     <tbody>
       <tr>
         <td>
-          <a class="xref" href="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryOptions.html#MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryOptions_ActivitySourceName">ActivitySourceName</a>
+          <a class="xref" href="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryOptions.html#MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryOptions_ExposeRpcScope">ExposeRpcScope</a>
         </td>
-        <td class="markdown level1 summary"><p>ActivitySource Name Tracer using</p>
+        <td class="markdown level1 summary"><p>Expose RpsScope to the ServiceContext.Items. RpsScope key begin with .TraceContext</p>
 </td>
       </tr>
       <tr>
         <td>
-          <a class="xref" href="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryOptions.html#MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryOptions_MetricsExporterEndpoint">MetricsExporterEndpoint</a>
+          <a class="xref" href="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryOptions.html#MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryOptions_ServiceName">ServiceName</a>
         </td>
-        <td class="markdown level1 summary"><p>Metrics Exporter Endpoint. Default Prometheus endpoint.</p>
+        <td class="markdown level1 summary"><p>ServiceName for Tracer. Especially Zipkin use service.name tag to identify service name.</p>
 </td>
       </tr>
       <tr>
         <td>
-          <a class="xref" href="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryOptions.html#MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryOptions_TracerExporterEndpoint">TracerExporterEndpoint</a>
+          <a class="xref" href="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryOptions.html#MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryOptions_TracingTags">TracingTags</a>
         </td>
-        <td class="markdown level1 summary"><p>Tracer Exporter Endpoint. Default Zipkin endpoint.</p>
-</td>
-      </tr>
-      <tr>
-        <td>
-          <a class="xref" href="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryOptions.html#MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryOptions_TracerVersion">TracerVersion</a>
-        </td>
-        <td class="markdown level1 summary"><p>Tracer Version to record</p>
+        <td class="markdown level1 summary"><p>Application specific OpenTelemetry Tracing tags</p>
 </td>
       </tr>
     </tbody>
@@ -142,14 +136,45 @@
   <h3 id="properties">Properties
   </h3>
   <section>
-  <a id="MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryOptions_ActivitySourceName_" data-uid="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryOptions.ActivitySourceName*"></a>
-  <h4 id="MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryOptions_ActivitySourceName" data-uid="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryOptions.ActivitySourceName">ActivitySourceName</h4>
-  <div class="markdown level1 summary"><p>ActivitySource Name Tracer using</p>
+  <a id="MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryOptions_ExposeRpcScope_" data-uid="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryOptions.ExposeRpcScope*"></a>
+  <h4 id="MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryOptions_ExposeRpcScope" data-uid="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryOptions.ExposeRpcScope">ExposeRpcScope</h4>
+  <div class="markdown level1 summary"><p>Expose RpsScope to the ServiceContext.Items. RpsScope key begin with .TraceContext</p>
 </div>
   <div class="markdown level1 conceptual"></div>
   
   <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public string ActivitySourceName { get; set; }</code></pre>
+    <pre><code class="lang-csharp hljs">public bool ExposeRpcScope { get; set; }</code></pre>
+  </div>
+
+  
+  
+  
+  
+  <section>
+  <h5 class="propertyValue">Property Value</h5>
+  <dl class="cysharpdocfx-valuedefinition">
+    <dt><span class="xref">System.Boolean</span></dt>
+    <dd></dd>
+  </dl>
+  </section>
+  
+  
+  
+  
+  
+  
+  
+  
+  </section>
+  <section>
+  <a id="MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryOptions_ServiceName_" data-uid="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryOptions.ServiceName*"></a>
+  <h4 id="MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryOptions_ServiceName" data-uid="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryOptions.ServiceName">ServiceName</h4>
+  <div class="markdown level1 summary"><p>ServiceName for Tracer. Especially Zipkin use service.name tag to identify service name.</p>
+</div>
+  <div class="markdown level1 conceptual"></div>
+  
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public string ServiceName { get; set; }</code></pre>
   </div>
 
   
@@ -167,20 +192,23 @@
   
   
   
+  <h5 id="MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryOptions_ServiceName_remarks">Remarks</h5>
+  <div class="markdown level1 remarks"><p>input to tag <code>service.name</code></p>
+</div>
   
   
   
   
   </section>
   <section>
-  <a id="MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryOptions_MetricsExporterEndpoint_" data-uid="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryOptions.MetricsExporterEndpoint*"></a>
-  <h4 id="MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryOptions_MetricsExporterEndpoint" data-uid="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryOptions.MetricsExporterEndpoint">MetricsExporterEndpoint</h4>
-  <div class="markdown level1 summary"><p>Metrics Exporter Endpoint. Default Prometheus endpoint.</p>
+  <a id="MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryOptions_TracingTags_" data-uid="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryOptions.TracingTags*"></a>
+  <h4 id="MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryOptions_TracingTags" data-uid="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryOptions.TracingTags">TracingTags</h4>
+  <div class="markdown level1 summary"><p>Application specific OpenTelemetry Tracing tags</p>
 </div>
   <div class="markdown level1 conceptual"></div>
   
   <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public string MetricsExporterEndpoint { get; set; }</code></pre>
+    <pre><code class="lang-csharp hljs">public Dictionary&lt;string, string&gt; TracingTags { get; set; }</code></pre>
   </div>
 
   
@@ -190,69 +218,7 @@
   <section>
   <h5 class="propertyValue">Property Value</h5>
   <dl class="cysharpdocfx-valuedefinition">
-    <dt><span class="xref">System.String</span></dt>
-    <dd></dd>
-  </dl>
-  </section>
-  
-  
-  
-  
-  
-  
-  
-  
-  </section>
-  <section>
-  <a id="MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryOptions_TracerExporterEndpoint_" data-uid="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryOptions.TracerExporterEndpoint*"></a>
-  <h4 id="MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryOptions_TracerExporterEndpoint" data-uid="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryOptions.TracerExporterEndpoint">TracerExporterEndpoint</h4>
-  <div class="markdown level1 summary"><p>Tracer Exporter Endpoint. Default Zipkin endpoint.</p>
-</div>
-  <div class="markdown level1 conceptual"></div>
-  
-  <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public string TracerExporterEndpoint { get; set; }</code></pre>
-  </div>
-
-  
-  
-  
-  
-  <section>
-  <h5 class="propertyValue">Property Value</h5>
-  <dl class="cysharpdocfx-valuedefinition">
-    <dt><span class="xref">System.String</span></dt>
-    <dd></dd>
-  </dl>
-  </section>
-  
-  
-  
-  
-  
-  
-  
-  
-  </section>
-  <section>
-  <a id="MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryOptions_TracerVersion_" data-uid="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryOptions.TracerVersion*"></a>
-  <h4 id="MagicOnion_Server_OpenTelemetry_MagicOnionOpenTelemetryOptions_TracerVersion" data-uid="MagicOnion.Server.OpenTelemetry.MagicOnionOpenTelemetryOptions.TracerVersion">TracerVersion</h4>
-  <div class="markdown level1 summary"><p>Tracer Version to record</p>
-</div>
-  <div class="markdown level1 conceptual"></div>
-  
-  <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public string TracerVersion { get; set; }</code></pre>
-  </div>
-
-  
-  
-  
-  
-  <section>
-  <h5 class="propertyValue">Property Value</h5>
-  <dl class="cysharpdocfx-valuedefinition">
-    <dt><span class="xref">System.String</span></dt>
+    <dt><span class="xref">Dictionary</span>&lt;<span class="xref">System.String</span>, <span class="xref">System.String</span>&gt;</dt>
     <dd></dd>
   </dl>
   </section>

@@ -4,12 +4,12 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-    <title>AuthorizeAttribute Class
+    <title>MarshallingClientStreamWriter&lt;T&gt; Class
    | MagicOnion </title>
     <meta name="viewport" content="width=device-width">
-    <meta name="title" content="AuthorizeAttribute Class
+    <meta name="title" content="MarshallingClientStreamWriter&lt;T&gt; Class
    | MagicOnion ">
-    <meta name="generator" content="docfx 2.51.0.0">
+    <meta name="generator" content="docfx 2.59.2.0">
     
     <link rel="shortcut icon" href="../img/favicon.ico">
     <link rel="stylesheet" href="../styles/docfx.vendor.css">
@@ -71,38 +71,58 @@
         </div>
         <div class="article row grid-right">
           <div class="col-md-10">
-            <article class="content wrap" id="_content" data-uid="MagicOnion.Server.Authentication.AuthorizeAttribute">
+            <article class="content wrap" id="_content" data-uid="MagicOnion.MarshallingClientStreamWriter`1">
   
-  <h1 id="MagicOnion_Server_Authentication_AuthorizeAttribute" data-uid="MagicOnion.Server.Authentication.AuthorizeAttribute" class="text-break">AuthorizeAttribute Class
+  <h1 id="MagicOnion_MarshallingClientStreamWriter_1" data-uid="MagicOnion.MarshallingClientStreamWriter`1" class="text-break">MarshallingClientStreamWriter&lt;T&gt; Class
   </h1>
-  <h6><strong>Namespace</strong>: <a class="xref" href="MagicOnion.Server.Authentication.html">MagicOnion.Server.Authentication</a></h6>
-  <h6><strong>Assembly</strong>: MagicOnion.Server.Authentication.dll</h6>
+  <h6><strong>Namespace</strong>: <a class="xref" href="MagicOnion.html">MagicOnion</a></h6>
+  <h6><strong>Assembly</strong>: MagicOnion.Client.dll</h6>
   
-  <div class="markdown level0 summary"><p>Specifies that the class or method that this attribute is applied to require authorization.</p>
-</div>
+  <div class="markdown level0 summary"></div>
   <div class="markdown level0 conceptual"></div>
   
   <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public class AuthorizeAttribute : Attribute, IMagicOnionFilterFactory&lt;MagicOnionFilterAttribute&gt;</code></pre>
+    <pre><code class="lang-csharp hljs">public class MarshallingClientStreamWriter&lt;T&gt; : IClientStreamWriter&lt;T&gt;</code></pre>
   </div>
 
   <div class="inheritance">
     <h5>Inheritance</h5>
     <span><span class="xref">System.Object</span></span> → 
-    <span class="xref">AuthorizeAttribute</span>
-  </div>
-  
-  <div classs="implements">
-    <h5>Implements</h5>
-    <div><a class="xref" href="MagicOnion.Server.IMagicOnionFilterFactory-1.html">IMagicOnionFilterFactory</a>&lt;<a class="xref" href="MagicOnion.Server.MagicOnionFilterAttribute.html">MagicOnionFilterAttribute</a>&gt;</div>
+    <span class="xref">MarshallingClientStreamWriter&lt;T&gt;</span>
   </div>
   
   
   
   
+  
+  <section>
+  <h4 class="typeParameters">Type Parameters</h4>
+  <dl class="cysharpdocfx-valuedefinition">
+    <dt><span class="parametername"><code>T</code></span></dt>
+    <dd></dd>
+  </dl>
+  </section>
   
   
   <h3 id="members">Members</h3>
+  <h4>Constructors
+  </h4>
+  <table class="table table-condensed">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          <a class="xref" href="MagicOnion.MarshallingClientStreamWriter-1.html#MagicOnion_MarshallingClientStreamWriter_1__ctor_IClientStreamWriter_System_Byte____MessagePackSerializerOptions_">MarshallingClientStreamWriter(IClientStreamWriter&lt;Byte[]&gt;, MessagePackSerializerOptions)</a>
+        </td>
+        <td class="markdown level1 summary"></td>
+      </tr>
+    </tbody>
+  </table>
   <h4>Properties
   </h4>
   <table class="table table-condensed">
@@ -115,13 +135,7 @@
     <tbody>
       <tr>
         <td>
-          <a class="xref" href="MagicOnion.Server.Authentication.AuthorizeAttribute.html#MagicOnion_Server_Authentication_AuthorizeAttribute_Order">Order</a>
-        </td>
-        <td class="markdown level1 summary"></td>
-      </tr>
-      <tr>
-        <td>
-          <a class="xref" href="MagicOnion.Server.Authentication.AuthorizeAttribute.html#MagicOnion_Server_Authentication_AuthorizeAttribute_Roles">Roles</a>
+          <a class="xref" href="MagicOnion.MarshallingClientStreamWriter-1.html#MagicOnion_MarshallingClientStreamWriter_1_WriteOptions">WriteOptions</a>
         </td>
         <td class="markdown level1 summary"></td>
       </tr>
@@ -139,33 +153,37 @@
     <tbody>
       <tr>
         <td>
-          <a class="xref" href="MagicOnion.Server.Authentication.AuthorizeAttribute.html#MagicOnion_Server_Authentication_AuthorizeAttribute_CreateInstance_IServiceProvider_">CreateInstance(IServiceProvider)</a>
+          <a class="xref" href="MagicOnion.MarshallingClientStreamWriter-1.html#MagicOnion_MarshallingClientStreamWriter_1_CompleteAsync">CompleteAsync()</a>
+        </td>
+        <td class="markdown level1 summary"></td>
+      </tr>
+      <tr>
+        <td>
+          <a class="xref" href="MagicOnion.MarshallingClientStreamWriter-1.html#MagicOnion_MarshallingClientStreamWriter_1_WriteAsync__0_">WriteAsync(T)</a>
         </td>
         <td class="markdown level1 summary"></td>
       </tr>
     </tbody>
   </table>
   
-  <h3 id="properties">Properties
+  <h3 id="constructors">Constructors
   </h3>
   <section>
-  <a id="MagicOnion_Server_Authentication_AuthorizeAttribute_Order_" data-uid="MagicOnion.Server.Authentication.AuthorizeAttribute.Order*"></a>
-  <h4 id="MagicOnion_Server_Authentication_AuthorizeAttribute_Order" data-uid="MagicOnion.Server.Authentication.AuthorizeAttribute.Order">Order</h4>
+  <a id="MagicOnion_MarshallingClientStreamWriter_1__ctor_" data-uid="MagicOnion.MarshallingClientStreamWriter`1.#ctor*"></a>
+  <h4 id="MagicOnion_MarshallingClientStreamWriter_1__ctor_IClientStreamWriter_System_Byte____MessagePackSerializerOptions_" data-uid="MagicOnion.MarshallingClientStreamWriter`1.#ctor(IClientStreamWriter{System.Byte[]},MessagePackSerializerOptions)">MarshallingClientStreamWriter(IClientStreamWriter&lt;Byte[]&gt;, MessagePackSerializerOptions)</h4>
   <div class="markdown level1 summary"></div>
   <div class="markdown level1 conceptual"></div>
   
   <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public int Order { get; set; }</code></pre>
+    <pre><code class="lang-csharp hljs">public MarshallingClientStreamWriter(IClientStreamWriter&lt;byte[]&gt; inner, MessagePackSerializerOptions options)</code></pre>
   </div>
 
-  
-  
-  
-  
   <section>
-  <h5 class="propertyValue">Property Value</h5>
+  <h5 class="parameters">Parameters</h5>
   <dl class="cysharpdocfx-valuedefinition">
-    <dt><span class="xref">System.Int32</span></dt>
+    <dt><span class="parametername"><code>inner</code></span> <span class="xref">IClientStreamWriter</span>&lt;<span class="xref">System.Byte</span>[]&gt;</dt>
+    <dd></dd>
+    <dt><span class="parametername"><code>options</code></span> <span class="xref">MessagePackSerializerOptions</span></dt>
     <dd></dd>
   </dl>
   </section>
@@ -177,15 +195,21 @@
   
   
   
+  
+  
+  
+  
   </section>
+  <h3 id="properties">Properties
+  </h3>
   <section>
-  <a id="MagicOnion_Server_Authentication_AuthorizeAttribute_Roles_" data-uid="MagicOnion.Server.Authentication.AuthorizeAttribute.Roles*"></a>
-  <h4 id="MagicOnion_Server_Authentication_AuthorizeAttribute_Roles" data-uid="MagicOnion.Server.Authentication.AuthorizeAttribute.Roles">Roles</h4>
+  <a id="MagicOnion_MarshallingClientStreamWriter_1_WriteOptions_" data-uid="MagicOnion.MarshallingClientStreamWriter`1.WriteOptions*"></a>
+  <h4 id="MagicOnion_MarshallingClientStreamWriter_1_WriteOptions" data-uid="MagicOnion.MarshallingClientStreamWriter`1.WriteOptions">WriteOptions</h4>
   <div class="markdown level1 summary"></div>
   <div class="markdown level1 conceptual"></div>
   
   <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public string[] Roles { get; set; }</code></pre>
+    <pre><code class="lang-csharp hljs">public WriteOptions WriteOptions { get; set; }</code></pre>
   </div>
 
   
@@ -195,7 +219,7 @@
   <section>
   <h5 class="propertyValue">Property Value</h5>
   <dl class="cysharpdocfx-valuedefinition">
-    <dt><span class="xref">System.String</span>[]</dt>
+    <dt><span class="xref">WriteOptions</span></dt>
     <dd></dd>
   </dl>
   </section>
@@ -211,19 +235,49 @@
   <h3 id="methods">Methods
   </h3>
   <section>
-  <a id="MagicOnion_Server_Authentication_AuthorizeAttribute_CreateInstance_" data-uid="MagicOnion.Server.Authentication.AuthorizeAttribute.CreateInstance*"></a>
-  <h4 id="MagicOnion_Server_Authentication_AuthorizeAttribute_CreateInstance_IServiceProvider_" data-uid="MagicOnion.Server.Authentication.AuthorizeAttribute.CreateInstance(IServiceProvider)">CreateInstance(IServiceProvider)</h4>
+  <a id="MagicOnion_MarshallingClientStreamWriter_1_CompleteAsync_" data-uid="MagicOnion.MarshallingClientStreamWriter`1.CompleteAsync*"></a>
+  <h4 id="MagicOnion_MarshallingClientStreamWriter_1_CompleteAsync" data-uid="MagicOnion.MarshallingClientStreamWriter`1.CompleteAsync">CompleteAsync()</h4>
   <div class="markdown level1 summary"></div>
   <div class="markdown level1 conceptual"></div>
   
   <div class="codewrapper">
-    <pre><code class="lang-csharp hljs">public MagicOnionFilterAttribute CreateInstance(IServiceProvider serviceProvider)</code></pre>
+    <pre><code class="lang-csharp hljs">public Task CompleteAsync()</code></pre>
+  </div>
+
+  
+  <section>
+  <h5 class="returns">Returns</h5>
+  <dl class="cysharpdocfx-valuedefinition">
+    <dt><span class="xref">Task</span></dt>
+    <dd></dd>
+  </dl>
+  </section>
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  </section>
+  <section>
+  <a id="MagicOnion_MarshallingClientStreamWriter_1_WriteAsync_" data-uid="MagicOnion.MarshallingClientStreamWriter`1.WriteAsync*"></a>
+  <h4 id="MagicOnion_MarshallingClientStreamWriter_1_WriteAsync__0_" data-uid="MagicOnion.MarshallingClientStreamWriter`1.WriteAsync(`0)">WriteAsync(T)</h4>
+  <div class="markdown level1 summary"></div>
+  <div class="markdown level1 conceptual"></div>
+  
+  <div class="codewrapper">
+    <pre><code class="lang-csharp hljs">public Task WriteAsync(T message)</code></pre>
   </div>
 
   <section>
   <h5 class="parameters">Parameters</h5>
   <dl class="cysharpdocfx-valuedefinition">
-    <dt><span class="parametername"><code>serviceProvider</code></span> <span class="xref">IServiceProvider</span></dt>
+    <dt><span class="parametername"><code>message</code></span> <span class="xref">T</span></dt>
     <dd></dd>
   </dl>
   </section>
@@ -231,7 +285,7 @@
   <section>
   <h5 class="returns">Returns</h5>
   <dl class="cysharpdocfx-valuedefinition">
-    <dt><a class="xref" href="MagicOnion.Server.MagicOnionFilterAttribute.html">MagicOnionFilterAttribute</a></dt>
+    <dt><span class="xref">Task</span></dt>
     <dd></dd>
   </dl>
   </section>
@@ -248,10 +302,6 @@
   
   </section>
   
-  <h3 id="implements">Implements</h3>
-  <div>
-      <a class="xref" href="MagicOnion.Server.IMagicOnionFilterFactory-1.html">IMagicOnionFilterFactory&lt;T&gt;</a>
-  </div>
   
   
 </article>
