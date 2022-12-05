@@ -37,7 +37,7 @@ MagicOnion client supports a wide range of platforms, including .NET Framework 4
 - Client-side (MagicOnion.Client)
     - .NET Standard 2.1 (.NET Core 3.x+, .NET 5.0+, Xamarin)
     - .NET Standard 2.0 (.NET Framework 4.6.1+, Universal Windows Platform, .NET Core 2.x)
-    - Unity 2018.3+
+    - Unity 2018.4.13f1+
 
 ## Quick Start
 ### Server-side project
@@ -139,7 +139,7 @@ using MyApp.Shared;
 namespace MyApp.Services
 {
     // Implements RPC service in the server project.
-    // The implementation class must inehrit `ServiceBase<IMyFirstService>` and `IMyFirstService`
+    // The implementation class must inherit `ServiceBase<IMyFirstService>` and `IMyFirstService`
     public class MyFirstService : ServiceBase<IMyFirstService>, IMyFirstService
     {
         // `UnaryResult<T>` allows the method to be treated as `async` method.
@@ -209,7 +209,7 @@ dotnet add package MagicOnion.Abstractions
 ```
 
 The package `MagicOnion` is meta package to implements the role of both server and client.
-To implement server-to-server communicaiton such as Microservices, that can be both a server and a client, we recommend to install this package.
+To implement server-to-server communication such as Microservices, that can be both a server and a client, we recommend to install this package.
 
 ```bash
 dotnet add package MagicOnion
@@ -221,6 +221,7 @@ dotnet add package MagicOnion
 - [Quick Start](#quick-start)
 - [Installation](#installation)
 - Fundamentals
+    - [Service](#service)
     - [StreamingHub](#streaminghub)
     - [Filter](#filter)
     - [ClientFilter](#clientfilter)
@@ -233,6 +234,8 @@ dotnet add package MagicOnion
     - [Support for Unity client](#support-for-unity-client)
         - [iOS build with gRPC](#ios-build-with-grpc)
         - [Stripping debug symbols from ios/libgrpc.a](#stripping-debug-symbols-from-ioslibgrpca)
+        - [Stripping debug symbols from libgrpc_csharp_ext.so](#stripping-debug-symbols-from-libgrpccsharpextso)
+        - [Workaround for il2cpp + Windows Build failure](#workaround-for-il2cpp--windows-build-failure)
     - [gRPC Keepalive](#grpc-keepalive)
 - [HTTPS (TLS)](#https-tls)
 - [Deployment](#deployment)
@@ -247,8 +250,55 @@ dotnet add package MagicOnion
 - [License](#license)
 
 ## Fundamentals
+### Service
+A service is a mechanism that provides a request/response API in the style of RPC or Web-API, and is implemented as a Unary call to gRPC. 
+A service can be defined as a C# interface to benefit from the type. This means that it can be observed as a request over HTTP/2.
+
+#### Service definition (Shared library)
+```csharp
+using System;
+using MagicOnion;
+
+namespace MyApp.Shared
+{
+    // Defines .NET interface as a Server/Client IDL.
+    // The interface is shared between server and client.
+    public interface IMyFirstService : IService<IMyFirstService>
+    {
+        // The return type must be `UnaryResult<T>`.
+        UnaryResult<int> SumAsync(int x, int y);
+    }
+}
+```
+
+#### Service implementation (Server-side)
+```csharp
+using System;
+using MagicOnion;
+using MagicOnion.Server;
+using MyApp.Shared;
+
+namespace MyApp.Services
+{
+    // Implements RPC service in the server project.
+    // The implementation class must inherit `ServiceBase<IMyFirstService>` and `IMyFirstService`
+    public class MyFirstService : ServiceBase<IMyFirstService>, IMyFirstService
+    {
+        // `UnaryResult<T>` allows the method to be treated as `async` method.
+        public async UnaryResult<int> SumAsync(int x, int y)
+        {
+            Console.WriteLine($"Received:{x}, {y}");
+            return x + y;
+        }
+    }
+}
+```
+
+In MagicOnion, unlike gRPC in general, the body of the request is serialized by MessagePack for sending and receiving.
+
+
 ### StreamingHub
-StreamingHub is a fully-typed realtime server<->client communication framework.
+StreamingHub is a fully-typed realtime server <--> client communication framework.
 
 This sample is for Unity(use Vector3, GameObject, etc) but StreamingHub supports .NET Core, too.
 
@@ -256,7 +306,7 @@ This sample is for Unity(use Vector3, GameObject, etc) but StreamingHub supports
 // Server -> Client definition
 public interface IGamingHubReceiver
 {
-    // return type shuold be `void` or `Task`, parameters are free.
+    // The method must have a return type of `void` and can have up to 15 parameters of any type.
     void OnJoin(Player player);
     void OnLeave(Player player);
     void OnMove(Player player);
@@ -266,7 +316,7 @@ public interface IGamingHubReceiver
 // implements `IStreamingHub<TSelf, TReceiver>`  and share this type between server and client.
 public interface IGamingHub : IStreamingHub<IGamingHub, IGamingHubReceiver>
 {
-    // return type shuold be `Task` or `Task<T>`, parameters are free.
+    // The method must return `Task` or `Task<T>` and can have up to 15 parameters of any type.
     Task<Player[]> JoinAsync(string roomName, string userName, Vector3 position, Quaternion rotation);
     Task LeaveAsync();
     Task MoveAsync(Vector3 position, Quaternion rotation);
@@ -339,9 +389,9 @@ public class GamingHubClient : IGamingHubReceiver
  
     IGamingHub client;
  
-    public async Task<GameObject> ConnectAsync(Channel grpcChannel, string roomName, string playerName)
+    public async Task<GameObject> ConnectAsync(ChannelBase grpcChannel, string roomName, string playerName)
     {
-        var client = StreamingHubClient.Connect<IGamingHub, IGamingHubReceiver>(grpcChannel, this);
+        this.client = await StreamingHubClient.ConnectAsync<IGamingHub, IGamingHubReceiver>(grpcChannel, this);
  
         var roomPlayers = await client.JoinAsync(roomName, playerName, Vector3.zero, Quaternion.identity);
         foreach (var player in roomPlayers)
@@ -471,7 +521,7 @@ public class MyStreamingHubFilterAttribute : StreamingHubFilterAttribute
 
 Register filters using attributes with constructor injection(you can use `[FromTypeFilter]` and `[FromServiceFilter]`).
 
-```
+```csharp
 [FromTypeFilter(typeof(MyFilterAttribute))]
 public class MyService : ServiceBase<IMyService>, IMyService
 {
@@ -501,7 +551,7 @@ public class MyService : ServiceBase<IMyService>, IMyService
 ### ClientFilter
 MagicOnion client-filter is a powerful feature to hook before-after invoke. It is useful than gRPC client interceptor.
 
-> Currently only suppots on Unary.
+> Currently only supports on Unary.
 
 ```csharp
 // you can attach in MagicOnionClient.Create.
@@ -560,7 +610,7 @@ public class AppendHeaderFilter : IClientFilter
 {
     public async ValueTask<ResponseContext> SendAsync(RequestContext context, Func<RequestContext, ValueTask<ResponseContext>> next)
     {
-        // add the common header(like authentcation).
+        // add the common header(like authentication).
         var header = context.CallOptions.Headers;
         if (!header.Any(x => x.Key == "x-foo"))
         {
@@ -661,7 +711,7 @@ Service/StreamingHub's method or `MagicOnionFilter` can access `this.Context` it
 | Property | Description |
 | --- | --- |
 | `ConcurrentDictionary<string, object>` Items | Object storage per request/connection. |
-| `Guid` ContextId | Unieuq ID per request(Service)/connection(StreamingHub). |
+| `Guid` ContextId | Unique ID per request(Service)/connection(StreamingHub). |
 | `DateTime` Timestamp | Timestamp that request/connection is started time. |
 | `Type` ServiceType | Invoked Class. |
 | `MethodInfo` MethodInfo | Invoked Method. |
@@ -674,7 +724,7 @@ Service/StreamingHub's method or `MagicOnionFilter` can access `this.Context` it
 
 > If using StreamingHub, ServiceContext means per connected context so `Items` is not per method invoke. `StreamingHubContext.Items` supports per streaming hub method request but currently can not take from streaming hub method(only use in StreamingHubFilter). [Issue:#67](https://github.com/Cysharp/MagicOnion/issues/67), it will fix.
 
-MagicOnion supports get current context globaly like HttpContext.Current. `ServiceContext.Current` can get it but it requires `MagicOnionOptions.EnableCurrentContext = true`, default is false.
+MagicOnion supports get current context globally like HttpContext.Current. `ServiceContext.Current` can get it but it requires `MagicOnionOptions.EnableCurrentContext = true`, default is false.
 
 Lifecycle image of ServiceBase
 
@@ -732,14 +782,14 @@ public Task SendMessageAsync(string message)
     // ....
 ```
 
-Client can receive exception as gRPC's `RpcException`. If performance centric to avoid exception throw, you can use raw gRPC CallContext.Status(`ServiceContext.CallCaontext.Status`) and set status directly.
+Client can receive exception as gRPC's `RpcException`. If performance centric to avoid exception throw, you can use raw gRPC CallContext.Status(`ServiceContext.CallContext.Status`) and set status directly.
 
-MagicOnion's engine catched exception(except ReturnStatusException), set `StatusCode.Unknown` and client received gRPC's `RpcException`. If `MagicOnionOption.IsReturnExceptionStackTraceInErrorDetail` is true, client can receive StackTrace of server exception, it is very useful for debugging but has critical issue about sercurity so should only to enable debug build.
+MagicOnion's engine catched exception(except ReturnStatusException), set `StatusCode.Unknown` and client received gRPC's `RpcException`. If `MagicOnionOption.IsReturnExceptionStackTraceInErrorDetail` is true, client can receive StackTrace of server exception, it is very useful for debugging but has critical issue about security so should only to enable debug build.
 
 ### Group and GroupConfiguration
 StreamingHub's broadcast system is called Group. It can get from StreamingHub impl method, `this.Group`(this.Group type is `HubGroupRepository`, not `IGroup`).
 
-Current connection can add to group by `this.Group.AddAsync(string groupName)`, return value(`IGroup`) is joined group broadcaster so cache to field. It is enable per connection(if disconnected, automaticaly leaved from group). If you want to use some restriction, you can use `TryAddAsync(string groupName, int incluciveLimitCount, bool createIfEmpty)`.
+Current connection can add to group by `this.Group.AddAsync(string groupName)`, return value(`IGroup`) is joined group broadcaster so cache to field. It is enable per connection(if disconnected, automatically leaved from group). If you want to use some restriction, you can use `TryAddAsync(string groupName, int incluciveLimitCount, bool createIfEmpty)`.
 
 `IGroup` can pass to StreamingHub.`Broadcast`, `BroadcastExceptSelf`, `BroadcastExcept` and calls client proxy.
 
@@ -814,7 +864,7 @@ If creates Server-Client project, I recommend make three projects. `Server`, `Se
 
 ServerDefinition is only defined interface(`IService<>`, `IStreamingHub<,>`)(and some share request/response types).
 
-If debugging, I recommend use [SwitchStartupProject](https://marketplace.visualstudio.com/items?itemName=vs-publisher-141975.SwitchStartupProjectforVS2017) exteinson of VisualStudio and launch both Server and Client.
+If debugging, I recommend use [SwitchStartupProject](https://marketplace.visualstudio.com/items?itemName=vs-publisher-141975.SwitchStartupProjectforVS2017) extension of VisualStudio and launch both Server and Client.
 
 ```json
 "MultiProjectConfigurations": {
@@ -856,7 +906,7 @@ public class MyFirstService : ServiceBase<IMyFirstService>, IMyFirstService
 # Clients
 
 ## Support for Unity client
-MagicOnion supports Unity version, which is available for `.NET 4.x` runtime and C# 7.3 or later. (Unity 2018.3+)
+MagicOnion supports from Unity version 2018.4.13f1 and above, which is available for `.NET 4.x` runtime and C# 7.3 or latest.
 
 Using MagicOnion with Unity client requires the following four things:
 
@@ -986,6 +1036,71 @@ Full options are below.
 
 Project structure and code generation samples are found in [samples](https://github.com/Cysharp/MagicOnion/tree/master/samples) directory and README.
 
+### gRPC channel management integration for Unity
+Wraps gRPC channels and provides a mechanism to manage them with Unity's lifecycle.
+This prevents your application and the Unity Editor from freezing by releasing channels and StreamingHub in one place.
+
+The editor extension also provides the ability to display the communication status of channels.
+
+![](https://user-images.githubusercontent.com/9012/111609638-da21a800-881d-11eb-81b2-33abe80ea497.gif)
+
+> **NOTE**: The data rate is calculated only for the message body of methods, and does not include Headers, Trailers, or Keep-alive pings.
+
+#### New APIs
+- `MagicOnion.GrpcChannelx` class
+  - `GrpcChannelx.ForTarget(GrpcChannelTarget)` method
+  - `GrpcChannelx.ForAddress(Uri)` method
+  - `GrpcChannelx.ForAddress(string)` method
+- `MagicOnion.Unity.GrpcChannelProviderHost` class
+  - `GrpcChannelProviderHost.Initialize(IGrpcChannelProvider)` method
+- `MagicOnion.Unity.IGrpcChannelProvider` interface
+  - `DefaultGrpcChannelProvider` class
+  - `LoggingGrpcChannelProvider` class
+
+#### Usages
+##### 1. Prepare to use `GrpcChannelx` in your Unity project.
+Before creating a channel in your application, you need to initialize the provider host to be managed.
+
+```csharp
+[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+public static void OnRuntimeInitialize()
+{
+    // Initialize gRPC channel provider when the application is loaded.
+    GrpcChannelProviderHost.Initialize(new DefaultGrpcChannelProvider(new []
+    {
+        // send keepalive ping every 5 second, default is 2 hours
+        new ChannelOption("grpc.keepalive_time_ms", 5000),
+        // keepalive ping time out after 5 seconds, default is 20 seconds
+        new ChannelOption("grpc.keepalive_timeout_ms", 5 * 1000),
+    }));
+}
+```
+
+GrpcChannelProviderHost will be created as DontDestroyOnLoad and keeps existing while the application is running. DO NOT destory it.
+
+![image](https://user-images.githubusercontent.com/9012/111586444-2eb82980-8804-11eb-8a4f-a898c86e5a60.png)
+
+##### 2. Use `GrpcChannelx.ForTarget` or `GrpcChannelx.ForAddress` to create a channel.
+Use `GrpcChannelx.ForTarget` or `GrpcChannelx.ForAddress` to create a channel instead of `new Channel(...)`.
+
+```csharp
+var channel = GrpcChannelx.ForTarget(new GrpcChannelTarget("localhost", 12345, ChannelCredentials.Insecure));
+// or
+var channel = GrpcChannelx.ForAddress("http://localhost:12345");
+```
+
+##### 3. Use the channel instead of `Grpc.Core.Channel`.
+```csharp
+var channel = GrpcChannelx.ForAddress("http://localhost:12345");
+
+var serviceClient = MagicOnionClient.Create<IGreeterService>(channel);
+var hubClient = StreamingHubClient.ConnectAsync<IGreeterHub, IGreeterHubReceiver>(channel, this);
+```
+
+##### Extensions for Unity Editor (Editor Window & Inspector)
+![image](https://user-images.githubusercontent.com/9012/111585700-0d0a7280-8803-11eb-8ce3-3b8f9d968c13.png)
+
+
 ## iOS build with gRPC
 gRPC iOS build require two additional operation on build.
 
@@ -1030,7 +1145,7 @@ public class BuildIos
 ```
 
 ## Stripping debug symbols from ios/libgrpc.a
-When you download gRPC daily build and extract Native Libararies for Unity, you will find file size of Plugins/Grpc.Core/runtime/ios/libgrpc.a beyonds 100MB. GitHub will reject commit when file size is over 100MB, therefore libgrpc.a often become unwelcome for gif-low.
+When you download gRPC daily build and extract Native Libraries for Unity, you will find file size of Plugins/Grpc.Core/runtime/ios/libgrpc.a beyonds 100MB. GitHub will reject commit when file size is over 100MB, therefore libgrpc.a often become unwelcome for gif-low.
 The reason of libgrpc.a file size is because it includes debug symbols for 3 architectures, arm64, armv7 and x86_64.
 
 We introduce strip debug symbols and generate reduced size `libgrpc_stripped.a`, it's about 17MB.
@@ -1049,6 +1164,44 @@ $ rm libgrpc.a && mv libgrpc_stripped.a libgrpc.a
 ```
 
 Make sure you can build app with iOS and works fine.
+
+## Stripping debug symbols from libgrpc_csharp_ext.so
+Plugins/Grpc.Core/runtime/android/[arch]/libgrpc_csharp_ext.so file size is big because its includes debug symbols.
+
+You can reduce its size using strip (this command is includes in the NDK).
+
+```shell
+$ cd ${UNITY_PATH}/Plugins/Grpc.Core/runtime/android/${TARGET_ARCH}
+$ strip.exe libgrpc_csharp_ext.so
+```
+
+## Workaround for il2cpp + Windows Build failure
+If you do a Windows il2cpp build with the gRPC daily build, the build may fail with following error messages.
+
+```
+20AAB1A42EE7F9CA535031CD347327DE.obj : error LNK2019: unresolved external symbol dlopen referenced in function Mono_dlopen_m7F2DE2CD0870AB15EEA4E0A0BA6C47044E74BB67
+20AAB1A42EE7F9CA535031CD347327DE.obj : error LNK2019: unresolved external symbol dlerror referenced in function Mono_dlerror_m359ABCFD23D0EB5314DE2DFF8AB58CFE949BBABD
+20AAB1A42EE7F9CA535031CD347327DE.obj : error LNK2019: unresolved external symbol dlsym referenced in function Mono_dlsym_m31A00C09F598C9D552A94628C2C28B3C7B04C2DD
+C:\Path\To\MyProject\Library\il2cpp_cache\linkresult_C1E926E002526A4D380E4B12B6BD0522\GameAssembly.dll : fatal error LNK1120: 3 unresolved externals
+```
+
+The reason is because some native function (but not nessessary at the runtime) not found on Windows il2cpp build.
+You can avoid this problem by adding the following code to `grpc_csharp_ext_dummy_stubs.c`.
+
+```c
+void* dlopen(const char* filename, int flags) {
+  fprintf(stderr, "Should never reach here");
+  abort();
+}
+char* dlerror(void) {
+  fprintf(stderr, "Should never reach here");
+  abort();
+}
+void* dlsym(void* handle, const char* symbol) {
+  fprintf(stderr, "Should never reach here");
+  abort();
+}
+```
 
 ## gRPC Keepalive
 When you want detect network termination on Client or vice-versa, you can configure gRPC Keepalive.
@@ -1072,7 +1225,7 @@ var options = new[]
 {
     // send keepalive ping every 10 second, default is 2 hours
     new ChannelOption("grpc.keepalive_time_ms", 10000),
-    // keepalive ping time out after 5 seconds, default is 20 seoncds
+    // keepalive ping time out after 5 seconds, default is 20 seconds
     new ChannelOption("grpc.keepalive_timeout_ms", 5000),
     // allow grpc pings from client every 10 seconds
     new ChannelOption("grpc.http2.min_time_between_pings_ms", 10000),
@@ -1172,7 +1325,7 @@ webBuilder
 ```
 
 #### Client-side (.NET Standard 2.1; Grpc.Net.Client)
-When calling `GrpcChannel.FromAddress`, change the URL scheme to HTTP and the port to an unencrypted port.
+When calling `GrpcChannel.ForAddress`, change the URL scheme to HTTP and the port to an unencrypted port.
 
 ```csharp
 var channel = GrpcChannel.ForAddress("http://localhost:5000");
@@ -1286,14 +1439,14 @@ public interface IMyFirstService : IService<IMyFirstService>
     UnaryResult<string> SumAsync(int x, int y);
     Task<UnaryResult<string>> SumLegacyTaskAsync(int x, int y);
     Task<ClientStreamingResult<int, string>> ClientStreamingSampleAsync();
-    Task<ServerStreamingResult<string>> ServertSreamingSampleAsync(int x, int y, int z);
-    Task<DuplexStreamingResult<int, string>> DuplexStreamingSampleAync();
+    Task<ServerStreamingResult<string>> ServerStreamingSampleAsync(int x, int y, int z);
+    Task<DuplexStreamingResult<int, string>> DuplexStreamingSampleAsync();
 }
 
 // Server
 public class MyFirstService : ServiceBase<IMyFirstService>, IMyFirstService
 {
-    // VisualStudio 2017(C# 7.0), Unity 2018.3 supports return `async UnaryResult` directly
+    // VisualStudio 2017(C# 7.0), Unity 2018.3+ supports return `async UnaryResult` directly
     // I recommend disable async-warning on project level. <NoWarn>1998</NoWarn>
     public async UnaryResult<string> SumAsync(int x, int y)
     {
@@ -1319,18 +1472,18 @@ public class MyFirstService : ServiceBase<IMyFirstService>, IMyFirstService
         var stream = GetClientStreamingContext<int, string>();
 
         // receive from client asynchronously
-        await stream.ForEachAsync(x =>
+        await foreach (var x in stream.ReadAllAsync())
         {
             Logger.Debug("Client Stream Received:" + x);
-        });
+        }
 
         // StreamingContext.Result() for result value.
         return stream.Result("finished");
     }
 
-    public async Task<ServerStreamingResult<string>> ServertSreamingSampleAsync(int x, int y, int z)
+    public async Task<ServerStreamingResult<string>> ServerStreamingSampleAsync(int x, int y, int z)
     {
-        Logger.Debug($"Called ServertSreamingSampleAsync - x:{x} y:{y} z:{z}");
+        Logger.Debug($"Called ServerStreamingSampleAsync - x:{x} y:{y} z:{z}");
 
         var stream = GetServerStreamingContext<string>();
 
@@ -1344,9 +1497,9 @@ public class MyFirstService : ServiceBase<IMyFirstService>, IMyFirstService
         return stream.Result();
     }
 
-    public async Task<DuplexStreamingResult<int, string>> DuplexStreamingSampleAync()
+    public async Task<DuplexStreamingResult<int, string>> DuplexStreamingSampleAsync()
     {
-        Logger.Debug($"Called DuplexStreamingSampleAync");
+        Logger.Debug($"Called DuplexStreamingSampleAsync");
 
         // DuplexStreamingContext represents both server and client streaming.
         var stream = GetDuplexStreamingContext<int, string>();
@@ -1354,10 +1507,10 @@ public class MyFirstService : ServiceBase<IMyFirstService>, IMyFirstService
         var waitTask = Task.Run(async () =>
         {
             // ForEachAsync(MoveNext, Current) can receive client streaming.
-            await stream.ForEachAsync(x =>
+            await foreach (var x in stream.ReadAllAsync())
             {
                 Logger.Debug($"Duplex Streaming Received:" + x);
-            });
+            }
         });
 
         // WriteAsync is ServerStreaming.
@@ -1377,7 +1530,7 @@ Client sample.
 ```csharp
 static async Task UnaryRun(IMyFirstService client)
 {
-    // await(C# 7.0, Unity 2018.3)
+    // await(C# 7.0, Unity 2018.3+)
     var vvvvv = await client.SumAsync(10, 20);
     Console.WriteLine("SumAsync:" + vvvvv);
     
@@ -1402,20 +1555,20 @@ static async Task ClientStreamRun(IMyFirstService client)
 
 static async Task ServerStreamRun(IMyFirstService client)
 {
-    var stream = await client.ServertSreamingSampleAsync(10, 20, 3);
+    var stream = await client.ServerStreamingSampleAsync(10, 20, 3);
 
-    await stream.ResponseStream.ForEachAsync(x =>
+    await foreach (var x in stream.ResponseStream.ReadAllAsync())
     {
         Console.WriteLine("ServerStream Response:" + x);
-    });
+    }
 }
 
 static async Task DuplexStreamRun(IMyFirstService client)
 {
-    var stream = await client.DuplexStreamingSampleAync();
+    var stream = await client.DuplexStreamingSampleAsync();
 
     var count = 0;
-    await stream.ResponseStream.ForEachAsync(async x =>
+    await foreach (var x in stream.ResponseStream.ReadAllAsync())
     {
         Console.WriteLine("DuplexStream Response:" + x);
 
@@ -1424,7 +1577,7 @@ static async Task DuplexStreamRun(IMyFirstService client)
         {
             await stream.RequestStream.CompleteAsync();
         }
-    });
+    }
 }
 ```
 
@@ -1467,7 +1620,7 @@ I believe that this can be easily and effectively applied to sending a large num
 
 ## Experimentals
 ### OpenTelemetry
-MagicOnion.OpenTelemetry is implementation of [open\-telemetry/opentelemetry\-dotnet: OpenTelemetry \.NET SDK](https://github.com/open-telemetry/opentelemetry-dotnet), so you can use any OpenTelemetry exporter, like [Prometheus](https://prometheus.io/), [StackDriver](https://cloud.google.com/stackdriver/pricing), [Zipkin](https://zipkin.io/) and others.
+MagicOnion.OpenTelemetry is implementation of [open\-telemetry/opentelemetry\-dotnet: OpenTelemetry \.NET SDK](https://github.com/open-telemetry/opentelemetry-dotnet), so you can use any OpenTelemetry exporter, like [Jaeger](https://www.jaegertracing.io/), [Zipkin](https://zipkin.io/), [StackDriver](https://cloud.google.com/stackdriver) and others.
 
 See details at [MagicOnion.Server.OpenTelemetry](src/MagicOnion.Server.OpenTelemetry)
 

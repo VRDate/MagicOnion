@@ -1,4 +1,4 @@
-﻿using Grpc.Core;
+using Grpc.Core;
 using MagicOnion.Client;
 using MagicOnion.Server;
 using System;
@@ -13,7 +13,17 @@ using Xunit.Abstractions;
 
 namespace MagicOnion.Server.Tests
 {
-    public interface ISimpleTest : IService<ISimpleTest>
+    public interface ISimpleBaseBase
+    {
+        UnaryResult<int> UnaryBaseBase(int x, int y);
+    }
+
+    public interface ISimpleBase: ISimpleBaseBase
+    {
+        UnaryResult<int> UnaryBase(int x, int y);
+    }
+
+    public interface ISimpleTest : IService<ISimpleTest>, ISimpleBase
     {
         UnaryResult<int> Unary1(int x, int y);
         Task<UnaryResult<int>> Unary1Task(int x, int y);
@@ -45,10 +55,10 @@ namespace MagicOnion.Server.Tests
             var streaming = GetClientStreamingContext<int, string>();
 
             var list = new List<int>();
-            await streaming.ForEachAsync(x =>
+            await foreach (var x in streaming.ReadAllAsync())
             {
                 list.Add(x);
-            });
+            }
 
             return streaming.Result("finished:" + string.Join(", ", list));
         }
@@ -65,9 +75,9 @@ namespace MagicOnion.Server.Tests
 
             var l = new List<int>();
 
-            while (await stream.MoveNext())
+            await foreach (var x in stream.ReadAllAsync())
             {
-                l.Add(stream.Current);
+                l.Add(x);
                 await stream.WriteAsync(string.Join(", ", l));
             }
 
@@ -116,6 +126,15 @@ namespace MagicOnion.Server.Tests
 
 #pragma warning restore CS1998
 
+        public UnaryResult<int> UnaryBase(int x, int y)
+        {
+            return new UnaryResult<int>(x * y);
+        }
+
+        public UnaryResult<int> UnaryBaseBase(int x, int y)
+        {
+            return new UnaryResult<int>(x + y);
+        }
     }
 
     public class SimpleTest : IClassFixture<ServerFixture<UnaryTestImpl>>
@@ -138,8 +157,14 @@ namespace MagicOnion.Server.Tests
             r.Should().Be(30);
 
             var r0 = await client.Unary1Task(1000, 2000);
-            var r2 = await r0; 
+            var r2 = await r0;
             r2.Should().Be(3000);
+
+            var m = await client.UnaryBase(3, 4);
+            m.Should().Be(3 * 4);
+
+            var s = await client.UnaryBaseBase(3, 4);
+            s.Should().Be(3 + 4);
         }
 
         [Fact]

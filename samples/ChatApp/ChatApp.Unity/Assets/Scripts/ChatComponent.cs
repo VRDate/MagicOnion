@@ -7,6 +7,8 @@ using MagicOnion.Client;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using MagicOnion;
+using MagicOnion.Unity;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -14,7 +16,8 @@ namespace Assets.Scripts
 {
     public class ChatComponent : MonoBehaviour, IChatHubReceiver
     {
-        private Channel channel;
+        private CancellationTokenSource shutdownCancellation = new CancellationTokenSource();
+        private ChannelBase channel;
         private IChatHub streamingClient;
         private IChatService client;
 
@@ -40,9 +43,9 @@ namespace Assets.Scripts
         public Button UnaryExceptionButton;
 
 
-        void Start()
+        async void Start()
         {
-            this.InitializeClient();
+            await this.InitializeClientAsync();
             this.InitializeUi();
         }
 
@@ -50,22 +53,38 @@ namespace Assets.Scripts
         async void OnDestroy()
         {
             // Clean up Hub and channel
-            await this.streamingClient.DisposeAsync();
-            await this.channel.ShutdownAsync();
+            shutdownCancellation.Cancel();
+            
+            if (this.streamingClient != null) await this.streamingClient.DisposeAsync();
+            if (this.channel != null) await this.channel.ShutdownAsync();
         }
 
 
-        private void InitializeClient()
+        private async Task InitializeClientAsync()
         {
             // Initialize the Hub
-            this.channel = new Channel("localhost", 5000, ChannelCredentials.Insecure);
-            // for SSL/TLS connection
-            //var cred = new SslCredentials(File.ReadAllText(Path.Combine(Application.streamingAssetsPath, "server.crt")));
-            //this.channel = new Channel("dummy.example.com", 12345, cred); // local tls
-            //this.channel = new Channel("your-nlb-domain.com", 12345, new SslCredentials()); // aws nlb tls
+            // NOTE: If you want to use SSL/TLS connection, see InitialSettings.OnRuntimeInitialize method.
+            this.channel = GrpcChannelx.ForAddress("http://localhost:5000");
 
-            this.streamingClient = StreamingHubClient.Connect<IChatHub, IChatHubReceiver>(this.channel, this);
-            this.RegisterDisconnectEvent(streamingClient);
+            while (!shutdownCancellation.IsCancellationRequested)
+            {
+                try
+                {
+                    Debug.Log($"Connecting to the server...");
+                    this.streamingClient = await StreamingHubClient.ConnectAsync<IChatHub, IChatHubReceiver>(this.channel, this, cancellationToken: shutdownCancellation.Token);
+                    this.RegisterDisconnectEvent(streamingClient);
+                    Debug.Log($"Connection is established.");
+                    break;
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError(e);
+                }
+
+                Debug.Log($"Failed to connect to the server. Retry after 5 seconds...");
+                await Task.Delay(5 * 1000);
+            }
+
             this.client = MagicOnionClient.Create<IChatService>(this.channel);
         }
 
@@ -97,7 +116,7 @@ namespace Assets.Scripts
             finally
             {
                 // try-to-reconnect? logging event? close? etc...
-                Debug.Log($"disconnected server.: {this.channel.State}");
+                Debug.Log($"disconnected from the server.");
 
                 if (this.isSelfDisConnected)
                 {
@@ -105,7 +124,7 @@ namespace Assets.Scripts
                     await Task.Delay(2000);
 
                     // reconnect
-                    this.ReconnectServer();
+                    await this.ReconnectServerAsync();
                 }
             }
         }
@@ -151,17 +170,18 @@ namespace Assets.Scripts
 
             if (this.channel == null && this.streamingClient == null)
             {
-                this.InitializeClient();
+                await this.InitializeClientAsync();
                 this.InitializeUi();
             }
         }
 
 
-        private void ReconnectServer()
+        private async Task ReconnectServerAsync()
         {
-            this.streamingClient = StreamingHubClient.Connect<IChatHub, IChatHubReceiver>(this.channel, this);
+            Debug.Log($"Reconnecting to the server...");
+            this.streamingClient = await StreamingHubClient.ConnectAsync<IChatHub, IChatHubReceiver>(this.channel, this);
             this.RegisterDisconnectEvent(streamingClient);
-            Debug.Log("Reconnected server.");
+            Debug.Log("Reconnected.");
 
             this.JoinOrLeaveButton.interactable = true;
             this.SendMessageButton.interactable = false;

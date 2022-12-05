@@ -4,30 +4,26 @@ on:
   push:
     branches:
       - "master"
-      - "vNext"
     tags:
       - "!*" # not a tag push
+  workflow_dispatch:
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  NUGET_XMLDOC_MODE: skip
+  DOTNET_VERSION: '6.0.x'
+  DISABLE_NETFX_TARGET_BUILD: 1
 
 jobs:
   canary-build:
-    if: "!(contains(github.event.head_commit.message, '[skip ci]') || contains(github.event.head_commit.message, '[ci skip]'))"
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    env:
-      DOTNET_CLI_TELEMETRY_OPTOUT: 1
-      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
-      NUGET_XMLDOC_MODE: skip
-      DISABLE_NETFX_TARGET_BUILD: 1
-      DOTNET_SDK_VERSION_3: "3.1.403"
-      DOTNET_SDK_VERSION_5: "5.0.100"
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-dotnet@v1
         with:
-          dotnet-version: "${{ env.DOTNET_SDK_VERSION_3 }}"
-      - uses: actions/setup-dotnet@v1
-        with:
-          dotnet-version: "${{ env.DOTNET_SDK_VERSION_5 }}"
+          dotnet-version: ${{ env.DOTNET_VERSION }}
       - run: echo "MAGICONION_VERSION=ci-$(date '+%Y%m%d-%H%M%S')+${GITHUB_SHA:0:6}" >> $GITHUB_ENV
       - run: echo "MAGICONION_VERSION=${MAGICONION_VERSION}"
       # build
@@ -38,7 +34,6 @@ jobs:
       - run: dotnet build ./src/MagicOnion.Server/ -c Release -p:VersionSuffix=${MAGICONION_VERSION}
       - run: dotnet build ./src/MagicOnion.Server.HttpGateway/ -c Release -p:VersionSuffix=${MAGICONION_VERSION}
       - run: dotnet build ./src/MagicOnion.Server.Redis/ -c Release -p:VersionSuffix=${MAGICONION_VERSION}
-      - run: dotnet build ./src/MagicOnion.Server.Authentication/ -c Release -p:VersionSuffix=${MAGICONION_VERSION}
       #- run: dotnet build ./src/MagicOnion.Server.OpenTelemetry/ -c Release -p:VersionSuffix=${MAGICONION_VERSION}
       - run: dotnet build ./src/MagicOnion.MSBuild.Tasks/ -c Release -p:VersionSuffix=${MAGICONION_VERSION}
       - run: dotnet build ./src/MagicOnion.Generator/ -c Release -p:VersionSuffix=${MAGICONION_VERSION}
@@ -52,7 +47,6 @@ jobs:
       - run: dotnet pack ./src/MagicOnion.Server/MagicOnion.Server.csproj -c Release --include-symbols --include-source --no-build -p:VersionSuffix=${MAGICONION_VERSION} -o ./publish
       - run: dotnet pack ./src/MagicOnion.Server.HttpGateway/MagicOnion.Server.HttpGateway.csproj -c Release --include-symbols --include-source --no-build -p:VersionSuffix=${MAGICONION_VERSION} -o ./publish
       - run: dotnet pack ./src/MagicOnion.Server.Redis/MagicOnion.Server.Redis.csproj -c Release --include-symbols --include-source --no-build -p:VersionSuffix=${MAGICONION_VERSION} -o ./publish
-      - run: dotnet pack ./src/MagicOnion.Server.Authentication/MagicOnion.Server.Authentication.csproj -c Release --include-symbols --include-source --no-build -p:VersionSuffix=${MAGICONION_VERSION} -o ./publish
       #- run: dotnet pack ./src/MagicOnion.Server.OpenTelemetry/MagicOnion.Server.OpenTelemetry.csproj -c Release --include-symbols --include-source --no-build -p:VersionSuffix=${MAGICONION_VERSION} -o ./publish
       - run: dotnet pack ./src/MagicOnion.MSBuild.Tasks/MagicOnion.MSBuild.Tasks.csproj -c Release --include-symbols --include-source --no-build -p:VersionSuffix=${MAGICONION_VERSION} -o ./publish
       - run: dotnet pack ./src/MagicOnion.Generator/MagicOnion.Generator.csproj -c Release --include-symbols --include-source --no-build -p:VersionSuffix=${MAGICONION_VERSION} -o ./publish
@@ -61,32 +55,45 @@ jobs:
           name: nuget
           path: ./publish/
       # publish moc
-      - run: dotnet publish ./src/MagicOnion.Generator/ -c Release /p:PublishSingleFile=true /p:PublishTrimmed=true /p:IncludeSymbolsInSingleFile=true --self-contained -r win-x64 -o ./src/MagicOnion.Generator/bin/moc/win-x64
-      #- run: dotnet publish ./src/MagicOnion.Generator/ -c Release /p:PublishSingleFile=true /p:PublishTrimmed=true /p:IncludeSymbolsInSingleFile=true --self-contained -r linux-x64 -o ./src/MagicOnion.Generator/bin/moc/linux-x64
-      #- run: dotnet publish ./src/MagicOnion.Generator/ -c Release /p:PublishSingleFile=true /p:PublishTrimmed=true /p:IncludeSymbolsInSingleFile=true --self-contained -r osx-x64 -o ./src/MagicOnion.Generator/bin/moc/osx-x64
+      - run: dotnet publish ./src/MagicOnion.Generator/ -c Release /p:PublishSingleFile=true /p:PublishTrimmed=true --self-contained -r win-x64 -f net6.0 -o ./src/MagicOnion.Generator/bin/moc/win-x64
+      #- run: dotnet publish ./src/MagicOnion.Generator/ -c Release /p:PublishSingleFile=true /p:PublishTrimmed=true --self-contained -r linux-x64 -f net6.0 -o ./src/MagicOnion.Generator/bin/moc/linux-x64
+      #- run: dotnet publish ./src/MagicOnion.Generator/ -c Release /p:PublishSingleFile=true /p:PublishTrimmed=true --self-contained -r osx-x64 -f net6.0 -o ./src/MagicOnion.Generator/bin/moc/osx-x64
       - run: zip -r moc.${{ env.MAGICONION_VERSION }}.zip ./src/MagicOnion.Generator/bin/moc
       - uses: actions/upload-artifact@v1
         with:
           name: moc.${{ env.MAGICONION_VERSION }}.zip
           path: ./moc.${{ env.MAGICONION_VERSION }}.zip
 
+  canary-build-experimental:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - run: echo "MAGICONION_VERSION=ci-$(date '+%Y%m%d-%H%M%S')+${GITHUB_SHA:0:6}" >> $GITHUB_ENV
+      - run: echo "MAGICONION_VERSION=${MAGICONION_VERSION}"
+      # build
+      - run: dotnet build ./src/MagicOnion.Server.OpenTelemetry/ -c Release -p:VersionSuffix=${MAGICONION_VERSION}
+      # test
+      - run: dotnet pack ./src/MagicOnion.Server.OpenTelemetry/MagicOnion.Server.OpenTelemetry.csproj -c Release --include-symbols --include-source --no-build -p:VersionSuffix=${MAGICONION_VERSION} -o ./publish
+      - uses: actions/upload-artifact@v1
+        with:
+          name: nuget-experimental
+          path: ./publish/
+
   canary-push:
-    needs: [canary-build]
+    needs: [canary-build, canary-build-experimental]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      DOTNET_CLI_TELEMETRY_OPTOUT: 1
-      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
-      NUGET_XMLDOC_MODE: skip
       NUGET_CREDENTIALPROVIDER_SESSIONTOKENCACHE_ENABLED: true
     steps:
-      - uses: actions/setup-dotnet@v1
-        with:
-          dotnet-version: 3.1.101
-      - uses: actions/download-artifact@v2-preview
+      - uses: actions/download-artifact@v2
       # Upload to NuGet
       - run: echo "VSS_NUGET_EXTERNAL_FEED_ENDPOINTS=${FEED_ENDPOINTS}" >> $GITHUB_ENV
         env:
-          FEED_ENDPOINTS: ${{ secrets.VSS_NUGET_EXTERNAL_FEED_ENDPOINTS }}
+          FEED_ENDPOINTS: ${{ secrets.VSS_NUGET_EXTERNAL_FEED_ENDPOINTS_PUBLIC_CANARY }}
       - run: wget -qO- https://raw.githubusercontent.com/Microsoft/artifacts-credprovider/master/helpers/installcredprovider.sh | bash
-      - run: dotnet nuget push "./nuget/*.nupkg" --skip-duplicate -s https://pkgs.dev.azure.com/cysharp/MagicOnion/_packaging/Canary/nuget/v2 -k AzureDevOps
+      - run: dotnet nuget push "./nuget/*.nupkg" --skip-duplicate -s https://pkgs.dev.azure.com/cysharp/Public/_packaging/Canary-Build/nuget/v2 -k AzureDevOps

@@ -1,9 +1,10 @@
-﻿using MagicOnion.GeneratorCore.Utils;
+using MagicOnion.GeneratorCore.Utils;
 using MagicOnion.Utils;
 using Microsoft.CodeAnalysis;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 
@@ -11,8 +12,6 @@ namespace MagicOnion.CodeAnalysis
 {
     public class ReferenceSymbols
     {
-        public static ReferenceSymbols Global;
-
         public readonly INamedTypeSymbol Void;
         public readonly INamedTypeSymbol Task;
         public readonly INamedTypeSymbol TaskOfT;
@@ -28,34 +27,51 @@ namespace MagicOnion.CodeAnalysis
 
         public ReferenceSymbols(Compilation compilation, Action<string> logger)
         {
-            Void = compilation.GetTypeByMetadataName("System.Void");
-            if (Void == null)
+            INamedTypeSymbol GetTypeSymbolOrThrow(string name, SpecialType type = SpecialType.None, bool required = true)
             {
-                logger("failed to get metadata of System.Void.");
-            }
+                var symbol = compilation.GetTypeByMetadataName(name)
+                             ?? GetWellKnownType(name)
+                             ?? GetSpecialType(type);
 
-            TaskOfT = compilation.GetTypeByMetadataName("System.Threading.Tasks.Task`1");
-            if (TaskOfT == null)
-            {
-                logger("failed to get metadata of System.Threading.Tasks.Task`1.");
-            }
-
-            Task = compilation.GetTypeByMetadataName("System.Threading.Tasks.Task");
-            if (Task == null)
-            {
-                logger("failed to get metadata of System.Threading.Tasks.Task.");
-            }
-
-            INamedTypeSymbol GetTypeSymbolOrThrow(string name)
-            {
-                var symbol = compilation.GetTypeByMetadataName(name);
                 if (symbol == null)
                 {
-                    throw new InvalidOperationException("failed to get metadata of " + name);
+                    var message = "failed to get metadata of " + name;
+                    if (required) throw new InvalidOperationException(message);
+                    logger(message);
                 }
+
                 return symbol;
             }
 
+            var getTypeFromMetadataName = typeof(Compilation).Assembly
+                .GetType("Microsoft.CodeAnalysis.WellKnownTypes")
+                .GetMethod("GetTypeFromMetadataName", BindingFlags.Static | BindingFlags.Public);
+
+            var getWellKnownType = compilation.GetType()
+                .GetMethod("CommonGetWellKnownType", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            INamedTypeSymbol GetWellKnownType(string name)
+            {
+                var wellKnownType = getTypeFromMetadataName?.Invoke(null, new object[] { name });
+                var instance = wellKnownType != null && (int)wellKnownType > 0
+                    ? getWellKnownType?.Invoke(compilation, new[] { wellKnownType })
+                    : null;
+
+                // Roslyn returns PENamedTypeSymbol which is not convertable to INamedTypeSymbol
+                // https://github.com/dotnet/roslyn/blob/main/src/Compilers/CSharp/Portable/Symbols/Metadata/PE/PENamedTypeSymbol.cs#L2408
+                return instance as INamedTypeSymbol;
+            }
+
+            INamedTypeSymbol GetSpecialType(SpecialType type)
+            {
+                return type != SpecialType.None
+                    ? compilation.GetSpecialType(type)
+                    : null;
+            }
+
+            Void = GetTypeSymbolOrThrow("System.Void", SpecialType.System_Void);
+            Task = GetTypeSymbolOrThrow("System.Threading.Tasks.Task", required: false);
+            TaskOfT = GetTypeSymbolOrThrow("System.Threading.Tasks.Task`1", required: false);
             UnaryResult = GetTypeSymbolOrThrow("MagicOnion.UnaryResult`1");
             ClientStreamingResult = GetTypeSymbolOrThrow("MagicOnion.ClientStreamingResult`2");
             DuplexStreamingResult = GetTypeSymbolOrThrow("MagicOnion.DuplexStreamingResult`2");
@@ -65,8 +81,6 @@ namespace MagicOnion.CodeAnalysis
             IStreamingHub = GetTypeSymbolOrThrow("MagicOnion.IStreamingHub`2");
             IService = GetTypeSymbolOrThrow("MagicOnion.IService`1");
             MethodIdAttribute = GetTypeSymbolOrThrow("MagicOnion.Server.Hubs.MethodIdAttribute");
-
-            Global = this;
         }
     }
 
@@ -126,7 +140,7 @@ namespace MagicOnion.CodeAnalysis
                     FullName = x.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                     Namespace = x.ContainingNamespace.IsGlobalNamespace ? null : x.ContainingNamespace.ToDisplayString(),
                     IsServiceDefinition = true,
-                    IsIfDebug = x.GetAttributes().FindAttributeShortName("GenerateDefineDebugAttribute") != null,
+                    IfDirectiveCondition = x.GetDefinedGenerateIfCondition(),
                     Methods = x.GetMembers()
                         .OfType<IMethodSymbol>()
                         .Select(CreateMethodDefinition)
@@ -146,7 +160,7 @@ namespace MagicOnion.CodeAnalysis
                         Name = x.ToDisplayString(shortTypeNameFormat),
                         FullName = x.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                         Namespace = x.ContainingNamespace.IsGlobalNamespace ? null : x.ContainingNamespace.ToDisplayString(),
-                        IsIfDebug = x.GetAttributes().FindAttributeShortName("GenerateDefineDebugAttribute") != null,
+                        IfDirectiveCondition = x.GetDefinedGenerateIfCondition(),
                         Methods = x.GetMembers()
                             .OfType<IMethodSymbol>()
                             .Select(CreateMethodDefinition)
@@ -160,7 +174,7 @@ namespace MagicOnion.CodeAnalysis
                         Name = receiver.ToDisplayString(shortTypeNameFormat),
                         FullName = receiver.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                         Namespace = receiver.ContainingNamespace.IsGlobalNamespace ? null : receiver.ContainingNamespace.ToDisplayString(),
-                        IsIfDebug = receiver.GetAttributes().FindAttributeShortName("GenerateDefineDebugAttribute") != null,
+                        IfDirectiveCondition = receiver.GetDefinedGenerateIfCondition(),
                         Methods = receiver.GetMembers()
                             .OfType<IMethodSymbol>()
                             .Select(CreateMethodDefinition)
@@ -203,7 +217,7 @@ namespace MagicOnion.CodeAnalysis
                 id = (int)idAttr.ConstructorArguments[0].Value;
             }
 
-            return new MethodDefinition
+            return new MethodDefinition(typeReferences)
             {
                 Name = y.Name,
                 MethodType = t,
@@ -211,7 +225,7 @@ namespace MagicOnion.CodeAnalysis
                 ResponseType = responseType,
                 UnwrappedOriginalResposneTypeSymbol = unwrappedOriginalResponseType,
                 OriginalResponseTypeSymbol = y.ReturnType,
-                IsIfDebug = y.GetAttributes().FindAttributeShortName("GenerateDefineDebugAttribute") != null,
+                IfDirectiveCondition = y.GetDefinedGenerateIfCondition(),
                 HubId = id,
                 Parameters = y.Parameters.Select(p =>
                 {
@@ -229,31 +243,87 @@ namespace MagicOnion.CodeAnalysis
 
         void ExtractRequestResponseType(IMethodSymbol method, out MethodType methodType, out string requestType, out string responseType, out ITypeSymbol unwrappedOriginalResponseType)
         {
+            // Acceptable ReturnTypes:
+            //   - Void
+            //   - UnaryResult<T>
+            //   - Task<ServerStreamingResult<TResponse>>
+            //   - Task<ClientStreamingResult<TRequest, TResponse>>
+            //   - Task<DuplexStreamingResult<TRequest, TResponse>> 
+            //   - Task (for StreamingHub)
+            //   - Task<T> (for StreamingHub)
             var retType = method.ReturnType as INamedTypeSymbol;
+            var isTaskResponse = false;
             ITypeSymbol retType2 = null;
             if (retType == null)
             {
                 goto EMPTY;
             }
 
+            if (!retType.IsGenericType && !retType.ApproximatelyEqual(typeReferences.Task) && !retType.ApproximatelyEqual(typeReferences.Void))
+            {
+                throw new InvalidOperationException($"A return type of a method must be 'void', 'UnaryResult<T>', 'Task<T>', 'Task'. (Method: {method.ToDisplayString()}, Return: {retType.ToDisplayString()})");
+            }
+
             var constructedFrom = retType.ConstructedFrom;
+
+            // Task<T>
             if (constructedFrom.ApproximatelyEqual(typeReferences.TaskOfT))
             {
+                isTaskResponse = true;
                 retType2 = retType.TypeArguments[0];
                 retType = retType2 as INamedTypeSymbol;
                 constructedFrom = retType?.ConstructedFrom;
+
+                if (constructedFrom.ApproximatelyEqual(typeReferences.UnaryResult) ||
+                    constructedFrom.ApproximatelyEqual(typeReferences.ServerStreamingResult) ||
+                    constructedFrom.ApproximatelyEqual(typeReferences.ClientStreamingResult) ||
+                    constructedFrom.ApproximatelyEqual(typeReferences.DuplexStreamingResult))
+                {
+                    // Unwrap T (No-op)
+                }
+                else
+                {
+                    // Task<T> (for StreamingHub method)
+                    methodType = MethodType.Other;
+                    requestType = null;
+                    responseType = null;
+                    unwrappedOriginalResponseType = retType2;
+                    return;
+                }
             }
 
+            // UnaryResult<T>
             if (constructedFrom.ApproximatelyEqual(typeReferences.UnaryResult))
             {
                 methodType = MethodType.Unary;
                 requestType = (method.Parameters.Length == 1) ? method.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null;
                 responseType = retType.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
                 unwrappedOriginalResponseType = retType.TypeArguments[0];
+
+                // Cannot allow to use StreamingResult as a type parameter of UnaryResult.
+                if (retType.TypeArguments[0] is INamedTypeSymbol retTypeTypeArg0 &&
+                    (
+                        retTypeTypeArg0.ConstructedFrom.ApproximatelyEqual(typeReferences.ServerStreamingResult) ||
+                        retTypeTypeArg0.ConstructedFrom.ApproximatelyEqual(typeReferences.ClientStreamingResult) ||
+                        retTypeTypeArg0.ConstructedFrom.ApproximatelyEqual(typeReferences.DuplexStreamingResult)
+                    )
+                )
+                {
+                    throw new InvalidOperationException($"Cannot allow to use StreamingResult as a type parameter of UnaryResult. (Method: {method.ToDisplayString()}, Return: {retType.ToDisplayString()})");
+                }
                 return;
             }
-            else if (constructedFrom.ApproximatelyEqual(typeReferences.ServerStreamingResult))
+
+            // ServerStreamingResult<TResponse>
+            // ClientStreamingResult<TRequest, TResponse>
+            // DuplexStreamingResult<TRequest, TResponse>
+            if (constructedFrom.ApproximatelyEqual(typeReferences.ServerStreamingResult))
             {
+                if (!isTaskResponse)
+                {
+                    throw new InvalidOperationException($"CodeGenerator doesn't support generating non-asynchronous StreamingResult call. (Method: {method.ToDisplayString()}, Return: {retType.ToDisplayString()})");
+                }
+
                 methodType = MethodType.ServerStreaming;
                 requestType = (method.Parameters.Length == 1) ? method.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null;
                 responseType = retType.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
@@ -262,6 +332,11 @@ namespace MagicOnion.CodeAnalysis
             }
             else if (constructedFrom.ApproximatelyEqual(typeReferences.ClientStreamingResult))
             {
+                if (!isTaskResponse)
+                {
+                    throw new InvalidOperationException($"CodeGenerator doesn't support generating non-asynchronous StreamingResult call. (Method: {method.ToDisplayString()}, Return: {retType.ToDisplayString()})");
+                }
+
                 methodType = MethodType.ClientStreaming;
                 requestType = retType.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
                 responseType = retType.TypeArguments[1].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
@@ -270,6 +345,11 @@ namespace MagicOnion.CodeAnalysis
             }
             else if (constructedFrom.ApproximatelyEqual(typeReferences.DuplexStreamingResult))
             {
+                if (!isTaskResponse)
+                {
+                    throw new InvalidOperationException($"CodeGenerator doesn't support generating non-asynchronous StreamingResult call. (Method: {method.ToDisplayString()}, Return: {retType.ToDisplayString()})");
+                }
+
                 methodType = MethodType.DuplexStreaming;
                 requestType = retType.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
                 responseType = retType.TypeArguments[1].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);

@@ -1,42 +1,26 @@
-using System;
-using System.Reflection;
-using OpenTelemetry.Metrics.Export;
+using System.Collections.Generic;
 
 namespace MagicOnion.Server.OpenTelemetry
 {
+    /// <summary>
+    /// OpenTelemetry Options to inject Application Information
+    /// </summary>
     public class MagicOnionOpenTelemetryOptions
     {
         /// <summary>
-        /// Metrics Exporter Endpoint. Default Prometheus endpoint.
+        /// ServiceName for Tracer. Especially Zipkin use service.name tag to identify service name.
         /// </summary>
-        public string MetricsExporterEndpoint { get; set; } = "http://127.0.0.1:9181/metrics/";
-        /// <summary>
-        /// Tracer Exporter Endpoint. Default Zipkin endpoint.
-        /// </summary>
-        public string TracerExporterEndpoint { get; set; } = "http://127.0.0.1:9411/api/v2/spans";
-        /// <summary>
-        /// ActivitySource Name Tracer using
-        /// </summary>
-        public string ActivitySourceName { get; set; } = Assembly.GetEntryAssembly().GetName().Name.ToLower();
-        /// <summary>
-        /// Tracer Version to record
-        /// </summary>
-        public string TracerVersion { get; set; }
-    }
+        /// <remarks>input to tag `service.name`</remarks>
+        public string ServiceName { get; set; }
 
-    public class MagicOnionOpenTelemetryMeterFactoryOption
-    {
         /// <summary>
-        /// OpenTelemetry MetricsProcessor. default is <see cref="UngroupedBatcher"/>
+        /// Expose RpsScope to the ServiceContext.Items. RpsScope key begin with .TraceContext
         /// </summary>
-        public MetricProcessor MetricProcessor { get; set; } = new UngroupedBatcher();
+        public bool ExposeRpcScope { get; set; } = true;
+
         /// <summary>
-        /// OpenTelemetry MetricsExporter Implementation to use.
+        /// Application specific OpenTelemetry Tracing tags
         /// </summary>
-        public MetricExporter MetricExporter { get; set; }
-        /// <summary>
-        /// OpenTelemetry Metric Push Interval.
-        /// </summary>
-        public TimeSpan MetricPushInterval { get; set; } = TimeSpan.FromSeconds(10);
+        public Dictionary<string, string> TracingTags { get; set; } = new Dictionary<string, string>();
     }
 }

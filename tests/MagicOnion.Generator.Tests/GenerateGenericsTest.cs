@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using MessagePack;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -33,8 +34,8 @@ namespace TempProject
 {
     public interface IMyService : IService<IMyService>
     {
-        UnaryResult A(MyGenericObject<int> a);
-        UnaryResult B(MyGenericObject<MyObject> a);
+        UnaryResult<Nil> A(MyGenericObject<int> a);
+        UnaryResult<Nil> B(MyGenericObject<MyObject> a);
     }
 
     [MessagePackObject]
@@ -80,8 +81,8 @@ namespace TempProject
 {
     public interface IMyService : IService<IMyService>
     {
-        UnaryResult A(MyGenericObject<int, MyObject> a);
-        UnaryResult B(MyGenericObject<MyObject, int> a);
+        UnaryResult<Nil> A(MyGenericObject<int, MyObject> a);
+        UnaryResult<Nil> B(MyGenericObject<MyObject, int> a);
     }
 
     [MessagePackObject]
@@ -127,9 +128,9 @@ namespace TempProject
 {
     public interface IMyService : IService<IMyService>
     {
-        UnaryResult A(MyGenericObject<MyGenericObject<MyObject>> a);
-        UnaryResult B(MyGenericObject<MyGenericObject<MyGenericObject<MyObject>>> a);
-        UnaryResult B(MyGenericObject<MyGenericObject<MyGenericObject<int>>> a);
+        UnaryResult<Nil> A(MyGenericObject<MyGenericObject<MyObject>> a);
+        UnaryResult<Nil> B(MyGenericObject<MyGenericObject<MyGenericObject<MyObject>>> a);
+        UnaryResult<Nil> B(MyGenericObject<MyGenericObject<MyGenericObject<int>>> a);
     }
 
     [MessagePackObject]
@@ -376,6 +377,7 @@ namespace TempProject
             );
 
             var compilation = tempWorkspace.GetOutputCompilation();
+            compilation.GetCompilationErrors().Should().BeEmpty();
             var symbols = compilation.GetNamedTypeSymbolsFromGenerated();
             compilation.GetResolverKnownFormatterTypes().Should().BeEmpty();
         }
@@ -414,6 +416,7 @@ namespace TempProject
             );
 
             var compilation = tempWorkspace.GetOutputCompilation();
+            compilation.GetCompilationErrors().Should().BeEmpty();
             var symbols = compilation.GetNamedTypeSymbolsFromGenerated();
             compilation.GetResolverKnownFormatterTypes().Should().Contain(new[]
             {
@@ -448,6 +451,16 @@ namespace TempProject
     {
     }
 }
+
+// Pseudo generated MessagePackFormatter using mpc (MessagePack.Generator)
+namespace MessagePack.Formatters.TempProject
+{
+    public class MyGenericObjectFormatter<T> : MessagePack.Formatters.IMessagePackFormatter<global::TempProject.MyGenericObject<T>>
+    {
+        public void Serialize(ref MessagePackWriter writer, global::TempProject.MyGenericObject<T> value, MessagePackSerializerOptions options) => throw new NotImplementedException();
+        public global::TempProject.MyGenericObject<T> Deserialize(ref MessagePackReader reader, MessagePackSerializerOptions options) => throw new NotImplementedException();
+    }
+}
             ");
 
             var compiler = new MagicOnionCompiler(_testOutputHelper.WriteLine, CancellationToken.None);
@@ -461,6 +474,7 @@ namespace TempProject
             );
 
             var compilation = tempWorkspace.GetOutputCompilation();
+            compilation.GetCompilationErrors().Should().BeEmpty();
             compilation.GetResolverKnownFormatterTypes().Should().Contain(new[]
             {
                 "global::MessagePack.Formatters.TempProject.MyGenericObjectFormatter<int>",
@@ -483,7 +497,7 @@ namespace TempProject
     {
         UnaryResult<MyGenericObject<MyGenericObject<MyObject>>> A();
         UnaryResult<MyGenericObject<MyGenericObject<MyGenericObject<MyObject>>>> B();
-        UnaryResult<MyGenericObject<MyGenericObject<MyGenericObject<int>>>> B();
+        UnaryResult<MyGenericObject<MyGenericObject<MyGenericObject<int>>>> C();
     }
 
     [MessagePackObject]
@@ -494,6 +508,16 @@ namespace TempProject
     [MessagePackObject]
     public class MyGenericObject<T>
     {
+    }
+}
+
+// Pseudo generated MessagePackFormatter using mpc (MessagePack.Generator)
+namespace MessagePack.Formatters.TempProject
+{
+    public class MyGenericObjectFormatter<T> : MessagePack.Formatters.IMessagePackFormatter<global::TempProject.MyGenericObject<T>>
+    {
+        public void Serialize(ref MessagePackWriter writer, global::TempProject.MyGenericObject<T> value, MessagePackSerializerOptions options) => throw new NotImplementedException();
+        public global::TempProject.MyGenericObject<T> Deserialize(ref MessagePackReader reader, MessagePackSerializerOptions options) => throw new NotImplementedException();
     }
 }
             ");
@@ -509,6 +533,7 @@ namespace TempProject
             );
 
             var compilation = tempWorkspace.GetOutputCompilation();
+            compilation.GetCompilationErrors().Should().BeEmpty();
             compilation.GetResolverKnownFormatterTypes().Should().Contain(new[]
             {
                 "global::MessagePack.Formatters.TempProject.MyGenericObjectFormatter<global::TempProject.MyGenericObject<global::TempProject.MyObject>>",
@@ -546,6 +571,16 @@ namespace TempProject
     {
     }
 }
+
+// Pseudo generated MessagePackFormatter using mpc (MessagePack.Generator)
+namespace MessagePack.Formatters.TempProject
+{
+    public class MyGenericObjectFormatter<T1, T2> : MessagePack.Formatters.IMessagePackFormatter<global::TempProject.MyGenericObject<T1, T2>>
+    {
+        public void Serialize(ref MessagePackWriter writer, global::TempProject.MyGenericObject<T1, T2> value, MessagePackSerializerOptions options) => throw new NotImplementedException();
+        public global::TempProject.MyGenericObject<T1, T2> Deserialize(ref MessagePackReader reader, MessagePackSerializerOptions options) => throw new NotImplementedException();
+    }
+}
             ");
 
             var compiler = new MagicOnionCompiler(_testOutputHelper.WriteLine, CancellationToken.None);
@@ -559,6 +594,7 @@ namespace TempProject
             );
 
             var compilation = tempWorkspace.GetOutputCompilation();
+            compilation.GetCompilationErrors().Should().BeEmpty();
             compilation.GetResolverKnownFormatterTypes().Should().Contain(new[]
             {
                 "global::MessagePack.Formatters.TempProject.MyGenericObjectFormatter<int, global::TempProject.MyObject>",
@@ -592,6 +628,16 @@ namespace TempProject
     {
     }
 }
+
+// Pseudo generated MessagePackFormatter using mpc (MessagePack.Generator)
+namespace MessagePack.Formatters.TempProject
+{
+    public class MyGenericObjectFormatter<T> : MessagePack.Formatters.IMessagePackFormatter<global::TempProject.MyGenericObject<T>>
+    {
+        public void Serialize(ref MessagePackWriter writer, global::TempProject.MyGenericObject<T> value, MessagePackSerializerOptions options) => throw new NotImplementedException();
+        public global::TempProject.MyGenericObject<T> Deserialize(ref MessagePackReader reader, MessagePackSerializerOptions options) => throw new NotImplementedException();
+    }
+}
             ");
 
             var compiler = new MagicOnionCompiler(_testOutputHelper.WriteLine, CancellationToken.None);
@@ -605,6 +651,7 @@ namespace TempProject
             );
 
             var compilation = tempWorkspace.GetOutputCompilation();
+            compilation.GetCompilationErrors().Should().BeEmpty();
             var symbols = compilation.GetNamedTypeSymbolsFromGenerated();
             symbols.Should().Contain(x => x.Name.EndsWith("MyEnumFormatter"));
 
@@ -640,6 +687,16 @@ namespace TempProject
     {
     }
 }
+
+// Pseudo generated MessagePackFormatter using mpc (MessagePack.Generator)
+namespace MessagePack.Formatters.TempProject
+{
+    public class MyGenericObjectFormatter<T> : MessagePack.Formatters.IMessagePackFormatter<global::TempProject.MyGenericObject<T>>
+    {
+        public void Serialize(ref MessagePackWriter writer, global::TempProject.MyGenericObject<T> value, MessagePackSerializerOptions options) => throw new NotImplementedException();
+        public global::TempProject.MyGenericObject<T> Deserialize(ref MessagePackReader reader, MessagePackSerializerOptions options) => throw new NotImplementedException();
+    }
+}
             ");
 
             var compiler = new MagicOnionCompiler(_testOutputHelper.WriteLine, CancellationToken.None);
@@ -653,6 +710,7 @@ namespace TempProject
             );
 
             var compilation = tempWorkspace.GetOutputCompilation();
+            compilation.GetCompilationErrors().Should().BeEmpty();
             var symbols = compilation.GetNamedTypeSymbolsFromGenerated();
             symbols.Should().Contain(x => x.Name.EndsWith("MyEnumFormatter"));
 
@@ -688,6 +746,16 @@ namespace TempProject
     {
     }
 }
+
+// Pseudo generated MessagePackFormatter using mpc (MessagePack.Generator)
+namespace MessagePack.Formatters.TempProject
+{
+    public class MyGenericObjectFormatter<T> : MessagePack.Formatters.IMessagePackFormatter<global::TempProject.MyGenericObject<T>>
+    {
+        public void Serialize(ref MessagePackWriter writer, global::TempProject.MyGenericObject<T> value, MessagePackSerializerOptions options) => throw new NotImplementedException();
+        public global::TempProject.MyGenericObject<T> Deserialize(ref MessagePackReader reader, MessagePackSerializerOptions options) => throw new NotImplementedException();
+    }
+}
             ");
 
             var compiler = new MagicOnionCompiler(_testOutputHelper.WriteLine, CancellationToken.None);
@@ -701,6 +769,7 @@ namespace TempProject
             );
 
             var compilation = tempWorkspace.GetOutputCompilation();
+            compilation.GetCompilationErrors().Should().BeEmpty();
             var symbols = compilation.GetNamedTypeSymbolsFromGenerated();
             compilation.GetResolverKnownFormatterTypes().Should().Contain(new[]
             {
@@ -741,6 +810,7 @@ namespace TempProject
             );
 
             var compilation = tempWorkspace.GetOutputCompilation();
+            compilation.GetCompilationErrors().Should().BeEmpty();
             var symbols = compilation.GetNamedTypeSymbolsFromGenerated();
             compilation.GetResolverKnownFormatterTypes().Should().Contain(new[]
             {
@@ -783,6 +853,7 @@ namespace TempProject
             );
 
             var compilation = tempWorkspace.GetOutputCompilation();
+            compilation.GetCompilationErrors().Should().BeEmpty();
             var symbols = compilation.GetNamedTypeSymbolsFromGenerated();
             compilation.GetResolverKnownFormatterTypes().Should().Contain(new[]
             {
@@ -824,6 +895,7 @@ namespace TempProject
             );
 
             var compilation = tempWorkspace.GetOutputCompilation();
+            compilation.GetCompilationErrors().Should().BeEmpty();
             var symbols = compilation.GetNamedTypeSymbolsFromGenerated();
             compilation.GetResolverKnownFormatterTypes().Should().BeEmpty();
         }
@@ -862,10 +934,83 @@ namespace TempProject
             );
 
             var compilation = tempWorkspace.GetOutputCompilation();
+            compilation.GetCompilationErrors().Should().BeEmpty();
             var symbols = compilation.GetNamedTypeSymbolsFromGenerated();
             compilation.GetResolverKnownFormatterTypes().Should().Contain(new[]
             {
                 "global::MessagePack.Formatters.ArrayFormatter<global::TempProject.MyResponse>"
+            });
+        }
+
+        
+        [Fact]
+        public async Task KnownFormatters()
+        {
+            using var tempWorkspace = TemporaryProjectWorkarea.Create();
+            tempWorkspace.AddFileToProject("IMyService.cs", @"
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using MessagePack;
+using MagicOnion;
+
+namespace TempProject
+{
+    public interface IMyService : IService<IMyService>
+    {
+        UnaryResult<List<MyResponse>>                        MethodList(List<int> args);
+        UnaryResult<IList<MyResponse>>                       MethodIList();
+        UnaryResult<IReadOnlyList<MyResponse>>               MethodIROList();
+
+        UnaryResult<Dictionary<string, MyResponse>>          MethodDictionary();
+        UnaryResult<IDictionary<string, MyResponse>>         MethodIDictionary();
+        UnaryResult<IReadOnlyDictionary<string, MyResponse>> MethodIRODictionary();
+
+        UnaryResult<IEnumerable<MyResponse>>                 MethodIEnumerable();
+        UnaryResult<ICollection<MyResponse>>                 MethodICollection();
+        UnaryResult<IReadOnlyCollection<MyResponse>>         MethodIROCollection();
+
+        UnaryResult<ILookup<int, MyResponse>>                MethodILookup();
+        UnaryResult<IGrouping<int, MyResponse>>              MethodIGrouping();
+    }
+    public class MyResponse
+    {
+    }
+}
+            ");
+
+            var compiler = new MagicOnionCompiler(_testOutputHelper.WriteLine, CancellationToken.None);
+            await compiler.GenerateFileAsync(
+                tempWorkspace.CsProjectPath,
+                tempWorkspace.OutputDirectory,
+                true,
+                "TempProject.Generated",
+                "",
+                "MessagePack.Formatters"
+            );
+
+            var compilation = tempWorkspace.GetOutputCompilation();
+            compilation.GetCompilationErrors().Should().BeEmpty();
+            var symbols = compilation.GetNamedTypeSymbolsFromGenerated();
+            compilation.GetResolverKnownFormatterTypes().Should().Contain(new[]
+            {
+                "global::MessagePack.Formatters.ListFormatter<int>",
+                "global::MessagePack.Formatters.ListFormatter<global::TempProject.MyResponse>",
+                "global::MessagePack.Formatters.InterfaceListFormatter2<global::TempProject.MyResponse>",
+                "global::MessagePack.Formatters.InterfaceReadOnlyListFormatter<global::TempProject.MyResponse>",
+
+                "global::MessagePack.Formatters.DictionaryFormatter<string, global::TempProject.MyResponse>",
+                "global::MessagePack.Formatters.InterfaceDictionaryFormatter<string, global::TempProject.MyResponse>",
+                "global::MessagePack.Formatters.InterfaceReadOnlyDictionaryFormatter<string, global::TempProject.MyResponse>",
+
+                "global::MessagePack.Formatters.InterfaceEnumerableFormatter<global::TempProject.MyResponse>",
+                "global::MessagePack.Formatters.InterfaceCollectionFormatter2<global::TempProject.MyResponse>",
+                "global::MessagePack.Formatters.InterfaceReadOnlyCollectionFormatter<global::TempProject.MyResponse>",
+
+                "global::MessagePack.Formatters.InterfaceLookupFormatter<int, global::TempProject.MyResponse>",
+                "global::MessagePack.Formatters.InterfaceGroupingFormatter<int, global::TempProject.MyResponse>",
+
             });
         }
     }

@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>7.3</LangVersion>
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>..\MagicOnion\opensource.snk</AssemblyOriginatorKeyFile>
     <DefineConstants>NON_UNITY</DefineConstants>
@@ -16,8 +17,8 @@ MagicOnion.IgnoreAttribute</Description>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Grpc.Core.Api" Version="2.25.0" />
-    <PackageReference Include="MessagePack" Version="2.1.90" />
+    <PackageReference Include="Grpc.Core.Api" Version="2.35.0" />
+    <PackageReference Include="MessagePack" Version="2.2.85" />
   </ItemGroup>
 
   <ItemGroup>
@@ -26,7 +27,7 @@ MagicOnion.IgnoreAttribute</Description>
 
   <!-- Copy files for unity MagicOnion -->
    <PropertyGroup>
-     <DestinationRoot>$(ProjectDir)..\MagicOnion.Client.Unity\Assets\Scripts\MagicOnion.Abstractions\</DestinationRoot>
+     <DestinationRoot>$(ProjectDir)..\MagicOnion.Client.Unity\Assets\Scripts\MagicOnion\MagicOnion.Abstractions\</DestinationRoot>
    </PropertyGroup>
    <ItemGroup>
      <TargetFiles Include="$(ProjectDir)\**\*.cs" Exclude="**\bin\**\*.*;**\obj\**\*.*;InternalsVisibleTo.cs" />

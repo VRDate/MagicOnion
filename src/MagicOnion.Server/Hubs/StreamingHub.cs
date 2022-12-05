@@ -1,7 +1,13 @@
 using Grpc.Core;
 using MessagePack;
 using System;
+using System.IO;
 using System.Threading.Tasks;
+using MagicOnion.Utils;
+using Microsoft.AspNetCore.Connections;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Http.Features;
 
 namespace MagicOnion.Server.Hubs
 {
@@ -10,6 +16,11 @@ namespace MagicOnion.Server.Hubs
     {
         static protected readonly Task<Nil> NilTask = Task.FromResult(Nil.Default);
         static protected readonly ValueTask CompletedTask = new ValueTask();
+
+        static readonly Metadata ResponseHeaders = new Metadata()
+        {
+            { "x-magiconion-streaminghub-version", "2" },
+        };
 
         public HubGroupRepository Group { get; private set; } = default!; /* lateinit */
 
@@ -83,7 +94,6 @@ namespace MagicOnion.Server.Hubs
         public async Task<DuplexStreamingResult<byte[], byte[]>> Connect()
         {
             var streamingContext = GetDuplexStreamingContext<byte[], byte[]>();
-            Context.AsyncWriterLock = new AsyncLock();
 
             var group = StreamingHubHandlerRepository.GetGroupRepository(Context.MethodHandler);
             this.Group = new HubGroupRepository(this.Context, group);
@@ -92,8 +102,32 @@ namespace MagicOnion.Server.Hubs
                 await OnConnecting();
                 await HandleMessageAsync();
             }
+            catch (OperationCanceledException)
+            {
+                // NOTE: If DuplexStreaming is disconnected by the client, OperationCanceledException will be thrown.
+                //       However, such behavior is expected. the exception can be ignored.
+            }
+            catch (IOException ex) when (ex.InnerException is ConnectionAbortedException)
+            {
+                // NOTE: If DuplexStreaming is disconnected by the client, IOException will be thrown.
+                //       However, such behavior is expected. the exception can be ignored.
+            }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException)
+            {
+                var httpRequestLifetimeFeature = this.Context.CallContext.GetHttpContext()?.Features.Get<IHttpRequestLifetimeFeature>();
+
+                // NOTE: If the connection is completed when a message is written, PipeWriter throws an InvalidOperationException.
+                // NOTE: If the connection is closed with STREAM_RST, PipeReader throws an IOException.
+                //       However, such behavior is expected. the exception can be ignored.
+                //       https://github.com/dotnet/aspnetcore/blob/v6.0.0/src/Servers/Kestrel/Core/src/Internal/Http2/Http2Stream.cs#L516-L523
+                if (httpRequestLifetimeFeature is null || httpRequestLifetimeFeature.RequestAborted.IsCancellationRequested is false)
+                {
+                    throw;
+                }
+            }
             finally
             {
+                Context.CompleteStreamingHub();
                 await OnDisconnected();
                 await this.Group.DisposeAsync();
             }
@@ -106,6 +140,30 @@ namespace MagicOnion.Server.Hubs
             var ct = Context.CallContext.CancellationToken;
             var reader = Context.RequestStream!;
             var writer = Context.ResponseStream!;
+
+            // Send a hint to the client to start sending messages.
+            // The client can read the response headers before any StreamingHub's message.
+            await Context.CallContext.WriteResponseHeadersAsync(ResponseHeaders);
+
+            // Write a marker that is the beginning of the stream.
+            // NOTE: To prevent buffering by AWS ALB or reverse-proxy.
+            static byte[] BuildMarkerResponse()
+            {
+                using (var buffer = ArrayPoolBufferWriter.RentThreadStaticWriter())
+                {
+                    var writer = new MessagePackWriter(buffer);
+
+                    // response:  [messageId, methodId, response]
+                    // HACK: If the ID of the message is `-1`, the client will ignore the message.
+                    writer.WriteArrayHeader(3);
+                    writer.Write(-1);
+                    writer.Write(0);
+                    writer.WriteNil();
+                    writer.Flush();
+                    return buffer.WrittenSpan.ToArray();
+                }
+            }
+            await writer.WriteAsync(BuildMarkerResponse());
 
             var handlers = StreamingHubHandlerRepository.GetHandlers(Context.MethodHandler);
 
@@ -149,7 +207,6 @@ namespace MagicOnion.Server.Hubs
                     {
                         var context = new StreamingHubContext() // create per invoke.
                         {
-                            AsyncWriterLock = Context.AsyncWriterLock,
                             SerializerOptions = handler.serializerOptions,
                             HubInstance = this,
                             ServiceContext = Context,
@@ -187,7 +244,6 @@ namespace MagicOnion.Server.Hubs
                     {
                         var context = new StreamingHubContext() // create per invoke.
                         {
-                            AsyncWriterLock = Context.AsyncWriterLock,
                             SerializerOptions = handler.serializerOptions,
                             HubInstance = this,
                             ServiceContext = Context,
@@ -212,7 +268,7 @@ namespace MagicOnion.Server.Hubs
                         {
                             isErrorOrInterrupted = true;
                             Context.MethodHandler.logger.Error(ex, context);
-                            await context.WriteErrorMessage((int)StatusCode.Internal, "Erorr on " + handler.ToString(), ex, Context.MethodHandler.isReturnExceptionStackTraceInErrorDetail);
+                            await context.WriteErrorMessage((int)StatusCode.Internal, $"An error occurred while processing handler '{handler.ToString()}'.", ex, Context.MethodHandler.isReturnExceptionStackTraceInErrorDetail);
                         }
                         finally
                         {
