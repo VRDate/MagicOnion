@@ -3,5 +3,6 @@ using Grpc.Net.Client;
 public interface IScenario
 {
     ValueTask PrepareAsync(GrpcChannel channel);
-    ValueTask RunAsync(PerformanceTestRunningContext ctx, CancellationToken cancellationToken);
+    ValueTask RunAsync(int connectionId, PerformanceTestRunningContext ctx, CancellationToken cancellationToken);
+    Task CompleteAsync();
 }

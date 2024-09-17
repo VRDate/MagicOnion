@@ -2,10 +2,11 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <LangVersion>7.3</LangVersion>
-    <SignAssembly>true</SignAssembly>
-    <AssemblyOriginatorKeyFile>..\MagicOnion\opensource.snk</AssemblyOriginatorKeyFile>
-    <DefineConstants>NON_UNITY</DefineConstants>
+
+    <LangVersion>$(_LangVersionUnityBaseline)</LangVersion>
+    <Nullable>enable</Nullable>
+
+    <DefineConstants>$(DefineConstants);NON_UNITY</DefineConstants>
 
     <PackageId>MagicOnion.Abstractions</PackageId>
     <Description>MagicOnion interfaces and abstractions for server and client.
@@ -17,26 +18,29 @@ MagicOnion.IgnoreAttribute</Description>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Grpc.Core.Api" Version="2.35.0" />
-    <PackageReference Include="MessagePack" Version="2.2.85" />
+    <PackageReference Include="Grpc.Core.Api" />
+    <PackageReference Include="MessagePack" />
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
 
-  <ItemGroup>
-    <None Include="..\MagicOnion\Icon.png" Pack="true" PackagePath="/" />
-  </ItemGroup>
-
-  <!-- Copy files for unity MagicOnion -->
-   <PropertyGroup>
-     <DestinationRoot>$(ProjectDir)..\MagicOnion.Client.Unity\Assets\Scripts\MagicOnion\MagicOnion.Abstractions\</DestinationRoot>
-   </PropertyGroup>
    <ItemGroup>
-     <TargetFiles Include="$(ProjectDir)\**\*.cs" Exclude="**\bin\**\*.*;**\obj\**\*.*;InternalsVisibleTo.cs" />
+     <None Update="DynamicArgumentTuple.tt">
+       <LastGenOutput>DynamicArgumentTuple.cs</LastGenOutput>
+       <Generator>TextTemplatingFileGenerator</Generator>
+     </None>
    </ItemGroup>
    <ItemGroup>
-     <TargetFiles Remove="InternalsVisibleTo.cs" />
+     <Service Include="{508349b6-6b84-4df5-91f0-309beebad82d}" />
    </ItemGroup>
-   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-     <Copy SourceFiles="@(TargetFiles)" DestinationFiles="$(DestinationRoot)\%(RecursiveDir)%(Filename)%(Extension)" SkipUnchangedFiles="true" />
-   </Target>
+   <ItemGroup>
+     <Compile Update="DynamicArgumentTuple.cs">
+       <DesignTime>True</DesignTime>
+       <AutoGen>True</AutoGen>
+       <DependentUpon>DynamicArgumentTuple.tt</DependentUpon>
+     </Compile>
+   </ItemGroup>
 
 </Project>

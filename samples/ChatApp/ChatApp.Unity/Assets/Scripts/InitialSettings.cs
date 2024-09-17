@@ -1,6 +1,8 @@
 using System.IO;
+using MagicOnion.Client;
+#if MAGICONION_USE_GRPC_CCORE
 using Grpc.Core;
-#if USE_GRPC_NET_CLIENT
+#else
 using Grpc.Net.Client;
 #endif
 using MagicOnion.Unity;
@@ -10,6 +12,9 @@ using UnityEngine;
 
 namespace Assets.Scripts
 {
+    [MagicOnionClientGeneration(typeof(ChatApp.Shared.Services.IChatService))]
+    partial class MagicOnionClientInitializer {}
+
     class InitialSettings
     {
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
@@ -17,7 +22,7 @@ namespace Assets.Scripts
         {
             // NOTE: Currently, CompositeResolver doesn't work on Unity IL2CPP build. Use StaticCompositeResolver instead of it.
             StaticCompositeResolver.Instance.Register(
-                MagicOnion.Resolvers.MagicOnionResolver.Instance,
+                MagicOnionClientInitializer.Resolver,
                 MessagePack.Resolvers.GeneratedResolver.Instance,
                 BuiltinResolver.Instance,
                 PrimitiveObjectResolver.Instance
@@ -30,6 +35,18 @@ namespace Assets.Scripts
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         public static void OnRuntimeInitialize()
         {
+#if !MAGICONION_USE_GRPC_CCORE
+            // Use Grpc.Net.Client instead of C-core gRPC library.
+            GrpcChannelProviderHost.Initialize(
+                new GrpcNetClientGrpcChannelProvider(() => new GrpcChannelOptions()
+                {
+                    HttpHandler = new Cysharp.Net.Http.YetAnotherHttpHandler()
+                    {
+                        Http2Only = true,
+                    }
+                }));
+#endif
+#if MAGICONION_USE_GRPC_CCORE
             // Initialize gRPC channel provider when the application is loaded.
             GrpcChannelProviderHost.Initialize(new DefaultGrpcChannelProvider(new GrpcCCoreChannelOptions(new[]
             {
@@ -42,9 +59,7 @@ namespace Assets.Scripts
             // NOTE: If you want to use self-signed certificate for SSL/TLS connection
             //var cred = new SslCredentials(File.ReadAllText(Path.Combine(Application.streamingAssetsPath, "server.crt")));
             //GrpcChannelProviderHost.Initialize(new DefaultGrpcChannelProvider(new GrpcCCoreChannelOptions(channelCredentials: cred)));
-
-            // Use Grpc.Net.Client instead of C-core gRPC library.
-            //GrpcChannelProviderHost.Initialize(new GrpcNetClientGrpcChannelProvider(new GrpcChannelOptions() { HttpHandler = ... }));
+#endif
         }
     }
 }

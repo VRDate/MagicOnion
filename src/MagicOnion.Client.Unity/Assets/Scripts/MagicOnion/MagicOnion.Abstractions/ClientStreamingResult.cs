@@ -1,4 +1,4 @@
-﻿using Grpc.Core;
+using Grpc.Core;
 using MessagePack;
 using System;
 using System.Collections.Generic;
@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
+using MagicOnion.Internal;
 
 namespace MagicOnion
 {
@@ -14,75 +15,44 @@ namespace MagicOnion
     /// </summary>
     public struct ClientStreamingResult<TRequest, TResponse> : IDisposable
     {
-        internal readonly TResponse rawValue;
+        internal readonly TResponse? rawValue;
         internal readonly bool hasRawValue;
-        readonly AsyncClientStreamingCall<byte[], byte[]> inner;
-        readonly IClientStreamWriter<TRequest> requestStream;
-        readonly MessagePackSerializerOptions serializerOptions;
+        readonly IAsyncClientStreamingCallWrapper<TRequest, TResponse>? inner;
 
         public ClientStreamingResult(TResponse rawValue)
         {
             this.hasRawValue = true;
             this.rawValue = rawValue;
             this.inner = null;
-            this.requestStream = null;
-            this.serializerOptions = null;
         }
 
-        public ClientStreamingResult(AsyncClientStreamingCall<byte[], byte[]> inner, IClientStreamWriter<TRequest> requestStream, MessagePackSerializerOptions serializerOptions)
+        public ClientStreamingResult(IAsyncClientStreamingCallWrapper<TRequest, TResponse> inner)
         {
             this.hasRawValue = false;
             this.rawValue = default(TResponse);
             this.inner = inner;
-            this.requestStream = requestStream;
-            this.serializerOptions = serializerOptions;
         }
 
-        async Task<TResponse> Deserialize()
-        {
-            var bytes = await inner.ResponseAsync.ConfigureAwait(false);
-            return MessagePackSerializer.Deserialize<TResponse>(bytes, serializerOptions);
-        }
+        IAsyncClientStreamingCallWrapper<TRequest, TResponse> GetRequiredInner()
+            => inner ?? throw new NotSupportedException("ClientStreamingResult has no inner stream.");
 
         /// <summary>
         /// Asynchronous call result.
         /// </summary>
         public Task<TResponse> ResponseAsync
-        {
-            get
-            {
-                if (hasRawValue)
-                {
-                    return Task.FromResult(rawValue);
-                }
-                else
-                {
-                    return Deserialize();
-                }
-            }
-        }
+            => hasRawValue ? Task.FromResult(rawValue!) : GetRequiredInner().ResponseAsync;
 
         /// <summary>
         /// Asynchronous access to response headers.
         /// </summary>
         public Task<Metadata> ResponseHeadersAsync
-        {
-            get
-            {
-                return this.inner.ResponseHeadersAsync;
-            }
-        }
+            => GetRequiredInner().ResponseHeadersAsync;
 
         /// <summary>
         /// Async stream to send streaming requests.
         /// </summary>
         public IClientStreamWriter<TRequest> RequestStream
-        {
-            get
-            {
-                return this.requestStream;
-            }
-        }
+            => GetRequiredInner().RequestStream;
 
         /// <summary>
         /// Allows awaiting this object directly.
@@ -98,18 +68,14 @@ namespace MagicOnion
         /// Throws InvalidOperationException otherwise.
         /// </summary>
         public Status GetStatus()
-        {
-            return this.inner.GetStatus();
-        }
+            => GetRequiredInner().GetStatus();
 
         /// <summary>
         /// Gets the call trailing metadata if the call has already finished.
         /// Throws InvalidOperationException otherwise.
         /// </summary>
         public Metadata GetTrailers()
-        {
-            return this.inner.GetTrailers();
-        }
+            => GetRequiredInner().GetTrailers();
 
         /// <summary>
         /// Provides means to cleanup after the call.
@@ -122,11 +88,6 @@ namespace MagicOnion
         /// "Cancel" semantics of invoking <c>Dispose</c>.
         /// </remarks>
         public void Dispose()
-        {
-            if (this.inner != null)
-            {
-                this.inner.Dispose();
-            }
-        }
+            => inner?.Dispose();
     }
 }

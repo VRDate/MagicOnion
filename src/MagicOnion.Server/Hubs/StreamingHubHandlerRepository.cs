@@ -1,63 +1,87 @@
-﻿using MagicOnion.Utils;
-using System;
-using System.Collections.Generic;
+#if NET8_0_OR_GREATER
+using System.Collections.Frozen;
+#endif
+using Cysharp.Runtime.Multicast;
+using MagicOnion.Server.Internal;
 
-namespace MagicOnion.Server.Hubs
+namespace MagicOnion.Server.Hubs;
+
+// Global cache of Streaming Handler
+internal class StreamingHubHandlerRepository
 {
-    // Global cache of Streaming Handler
-    internal static class StreamingHubHandlerRepository
+    bool frozen;
+    IDictionary<MethodHandler, UniqueHashDictionary<StreamingHubHandler>> handlersCache = new Dictionary<MethodHandler, UniqueHashDictionary<StreamingHubHandler>>(MethodHandler.UniqueEqualityComparer.Instance);
+    IDictionary<MethodHandler, MagicOnionManagedGroupProvider> groupCache = new Dictionary<MethodHandler, MagicOnionManagedGroupProvider>(MethodHandler.UniqueEqualityComparer.Instance);
+    IDictionary<MethodHandler, IStreamingHubHeartbeatManager> heartbeats = new Dictionary<MethodHandler, IStreamingHubHeartbeatManager>(MethodHandler.UniqueEqualityComparer.Instance);
+
+    public void RegisterHandler(MethodHandler parent, StreamingHubHandler[] hubHandlers)
     {
-        static Dictionary<MethodHandler, UniqueHashDictionary<StreamingHubHandler>> cache
-            = new Dictionary<MethodHandler, UniqueHashDictionary<StreamingHubHandler>>(new MethodHandler.UniqueEqualityComparer());
+        ThrowIfFrozen();
 
-        static Dictionary<MethodHandler, IGroupRepository> cacheGroup
-            = new Dictionary<MethodHandler, IGroupRepository>(new MethodHandler.UniqueEqualityComparer());
+        var handlers = VerifyDuplicate(hubHandlers);
+        var hashDict = new UniqueHashDictionary<StreamingHubHandler>(handlers);
 
-        public static void RegisterHandler(MethodHandler parent, StreamingHubHandler[] hubHandlers)
+        handlersCache.Add(parent, hashDict);
+    }
+
+    public UniqueHashDictionary<StreamingHubHandler> GetHandlers(MethodHandler parent)
+        => handlersCache[parent];
+   
+
+    public void Freeze()
+    {
+        ThrowIfFrozen();
+        frozen = true;
+
+#if NET8_0_OR_GREATER
+        handlersCache = handlersCache.ToFrozenDictionary(MethodHandler.UniqueEqualityComparer.Instance);
+        groupCache = groupCache.ToFrozenDictionary(MethodHandler.UniqueEqualityComparer.Instance);
+        heartbeats = heartbeats.ToFrozenDictionary(MethodHandler.UniqueEqualityComparer.Instance);
+#endif
+    }
+
+    void ThrowIfFrozen()
+    {
+        if (frozen) throw new InvalidOperationException($"Cannot modify the {nameof(StreamingHubHandlerRepository)}. The instance is already frozen.");
+    }
+
+    public void RegisterGroupProvider(MethodHandler methodHandler, IMulticastGroupProvider groupProvider)
+    {
+        ThrowIfFrozen();
+        groupCache[methodHandler] = new MagicOnionManagedGroupProvider(groupProvider);
+    }
+
+    public MagicOnionManagedGroupProvider GetGroupProvider(MethodHandler methodHandler)
+    {
+        return groupCache[methodHandler];
+    }
+
+    public void RegisterHeartbeatManager(MethodHandler methodHandler, IStreamingHubHeartbeatManager heartbeatManager)
+    {
+        ThrowIfFrozen();
+        heartbeats[methodHandler] = heartbeatManager;
+    }
+
+    public IStreamingHubHeartbeatManager GetHeartbeatManager(MethodHandler methodHandler)
+    {
+        return heartbeats[methodHandler];
+    }
+
+    static (int, StreamingHubHandler)[] VerifyDuplicate(StreamingHubHandler[] hubHandlers)
+    {
+        var list = new List<(int, StreamingHubHandler)>();
+        var map = new Dictionary<int, StreamingHubHandler>();
+        foreach (var item in hubHandlers)
         {
-            var handlers = VerifyDuplicate(hubHandlers);
-            var hashDict = new UniqueHashDictionary<StreamingHubHandler>(handlers);
-
-            lock (cache)
+            var hash = item.MethodId;
+            if (map.ContainsKey(hash))
             {
-                cache.Add(parent, hashDict);
+                throw new InvalidOperationException($"StreamingHubHandler.MethodName found duplicate hashCode name. Please rename or use [MethodId] to avoid conflict. {map[hash]} and {item.MethodInfo.Name}");
             }
+            map.Add(hash, item);
+            list.Add((hash, item));
         }
 
-        public static UniqueHashDictionary<StreamingHubHandler> GetHandlers(MethodHandler parent)
-        {
-            return cache[parent];
-        }
-
-        static (int, StreamingHubHandler)[] VerifyDuplicate(StreamingHubHandler[] hubHandlers)
-        {
-            var list = new List<(int, StreamingHubHandler)>();
-            var map = new Dictionary<int, StreamingHubHandler>();
-            foreach (var item in hubHandlers)
-            {
-                var hash = item.MethodId;
-                if (map.ContainsKey(hash))
-                {
-                    throw new InvalidOperationException($"StreamingHubHandler.MethodName found duplicate hashCode name. Please rename or use [MethodId] to avoid conflict. {map[hash]} and {item.MethodInfo.Name}");
-                }
-                map.Add(hash, item);
-                list.Add((hash, item));
-            }
-
-            return list.ToArray();
-        }
-
-        public static void AddGroupRepository(MethodHandler parent, IGroupRepository repository)
-        {
-            lock (cacheGroup)
-            {
-                cacheGroup.Add(parent, repository);
-            }
-        }
-
-        public static IGroupRepository GetGroupRepository(MethodHandler parent)
-        {
-            return cacheGroup[parent];
-        }
+        return list.ToArray();
     }
 }

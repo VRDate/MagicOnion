@@ -57,7 +57,7 @@ _ReSharper*
 *.ncrunch*
 .*crunch*.local.xml
 
-# Installshield output folder 
+# Installshield output folder
 [Ee]xpress
 
 # DocProject is a documentation generator add-in
@@ -107,12 +107,22 @@ UpgradeLog*.XML
 .vs/config/applicationhost.config
 .vs/restore.dg
 
+# Benchmark Results
+BenchmarkDotNet.Artifacts/
+
+# .NET Core
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
 # Unity
 
 src/MagicOnion.Client.Unity/bin/*
 src/MagicOnion.Client.Unity/Library/*
 src/MagicOnion.Client.Unity/obj/*
 src/MagicOnion.Client.Unity/Temp/*
+
+**/UserSettings/*
 
 nuget/tools/*
 nuget/*.nupkg

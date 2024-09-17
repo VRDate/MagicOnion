@@ -1,10 +1,16 @@
 <Project>
   <PropertyGroup>
+    <VersionPrefix>7.0.0-preview.7</VersionPrefix>
+  </PropertyGroup>
+
+  <PropertyGroup>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
-    <VersionPrefix>4.4.1</VersionPrefix>
+    <WarningsAsErrors>$(WarningsAsErrors);Nullable</WarningsAsErrors>
+  </PropertyGroup>
 
-    <!-- NuGet Packaging -->
+  <!-- NuGet Packaging -->
+  <PropertyGroup>
     <PackageVersion>$(Version)</PackageVersion>
     <Company>Cysharp</Company>
     <Authors>Cysharp</Authors>
@@ -18,5 +24,13 @@
 
     <MagicOnionPackageDescription>Unified Realtime/API framework for .NET platform and Unity.</MagicOnionPackageDescription>
 
+    <!--<IncludeSource>true</IncludeSource>-->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all"/>
+  </ItemGroup>
 </Project>

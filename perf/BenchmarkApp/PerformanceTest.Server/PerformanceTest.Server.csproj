@@ -1,21 +1,26 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <DefineConstants>SERVER;$(DefineConstants)</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Grpc.AspNetCore" Version="2.40.0" />
+    <PackageReference Include="Grpc.AspNetCore" />
+    <PackageReference Include="JetBrains.Profiler.Api" />
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\PerformanceTest.Shared\Certs\*.*" LinkBase="Certs">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <Compile Include="..\PerformanceTest.Shared\**\*.cs" Exclude="**\obj\**;**\bin\**" LinkBase="Shared" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\..\src\MagicOnion.Serialization.MemoryPack\MagicOnion.Serialization.MemoryPack.csproj" />
     <ProjectReference Include="..\..\..\src\MagicOnion.Server\MagicOnion.Server.csproj" />
   </ItemGroup>
 

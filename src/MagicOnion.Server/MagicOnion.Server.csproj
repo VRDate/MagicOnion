@@ -1,12 +1,13 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>netcoreapp3.1;net5.0;net6.0</TargetFrameworks>
-    <SignAssembly>true</SignAssembly>
-    <AssemblyOriginatorKeyFile>..\MagicOnion\opensource.snk</AssemblyOriginatorKeyFile>
-    <nullable>enable</nullable>
-    <DefineConstants>TRACE;NON_UNITY</DefineConstants>
-    <LangVersion>default</LangVersion>
+    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
+
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+
+    <DefineConstants>$(DefineConstants);NON_UNITY;USE_OBJECTPOOL_STREAMINGHUBPAYLOADPOOL</DefineConstants>
 
     <!-- NuGet -->
     <PackageId>MagicOnion.Server</PackageId>
@@ -14,17 +15,24 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Grpc.AspNetCore.Server" Version="2.34.0" />
-    <PackageReference Include="Grpc.Core.Api" Version="2.35.0" />
+    <Compile Include="..\MagicOnion.Internal\**\*.cs" Exclude="**\bin\**;**\obj\**" LinkBase="Internal.Shared" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grpc.AspNetCore.Server" />
+    <PackageReference Include="Grpc.Core.Api" />
+    <PackageReference Include="Multicaster" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
+    <PackageReference Include="System.Diagnostics.DiagnosticSource" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\MagicOnion.Abstractions\MagicOnion.Abstractions.csproj" />
+    <ProjectReference Include="..\MagicOnion.Serialization.MessagePack\MagicOnion.Serialization.MessagePack.csproj" />
     <ProjectReference Include="..\MagicOnion.Shared\MagicOnion.Shared.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="..\MagicOnion\Icon.png" Pack="true" PackagePath="/" />
   </ItemGroup>
 
   <ItemGroup>
@@ -32,6 +40,10 @@
       <LastGenOutput>DynamicArgumentTuple.cs</LastGenOutput>
       <Generator>TextTemplatingFileGenerator</Generator>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MagicOnion.Server.Tests, PublicKey=0024000004800000940000000602000000240000525341310004000001000100f1ee449290a81377cf1a6d598f10a3e2de6c45ee5377140b179b7a2260007c4ba633a6f766a0b3392ae2160819d625d9d9d65a134b722fd4e637793479d6c8d72490f9992293ee53933205620245e55fcddb7ce6395d72c94365a432808fbcf1bf8ff2932a1263715f8bc73bb25b96366f118c58e24da5f2bee32223948d7bc5" />
   </ItemGroup>
 
 </Project>

@@ -1,18 +1,15 @@
 using System;
+using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-#if MAGICONION_UNITASK_SUPPORT
-using Cysharp.Threading.Tasks;
-#if !USE_GRPC_NET_CLIENT_ONLY
-using Channel = Grpc.Core.Channel;
-#endif
-#endif
 using Grpc.Core;
-#if USE_GRPC_NET_CLIENT
+#if MAGICONION_USE_GRPC_CCORE
+using Channel = Grpc.Core.Channel;
+#else
 using Grpc.Net.Client;
 #endif
 using MagicOnion.Client;
@@ -28,28 +25,26 @@ namespace MagicOnion
 #if UNITY_EDITOR || MAGICONION_ENABLE_CHANNEL_DIAGNOSTICS
         , IGrpcChannelxDiagnosticsInfo
 #endif
-#if MAGICONION_UNITASK_SUPPORT
-        , IUniTaskAsyncDisposable
-#endif
     {
-        private readonly Action<GrpcChannelx> _onDispose;
-        private readonly Dictionary<IStreamingHubMarker, (Func<Task> DisposeAsync, ManagedStreamingHubInfo StreamingHubInfo)> _streamingHubs = new Dictionary<IStreamingHubMarker, (Func<Task>, ManagedStreamingHubInfo)>();
-        private readonly ChannelBase _channel;
-        private bool _disposed;
+        readonly Action<GrpcChannelx> onDispose;
+        readonly Dictionary<IStreamingHubMarker, (Func<Task> DisposeAsync, ManagedStreamingHubInfo StreamingHubInfo)> streamingHubs = new Dictionary<IStreamingHubMarker, (Func<Task>, ManagedStreamingHubInfo)>();
+        readonly ChannelBase channel;
+
+        bool disposed;
+        bool shutdownRequested;
 
         public Uri TargetUri { get; }
         public int Id { get; }
 
-
 #if UNITY_EDITOR || MAGICONION_ENABLE_CHANNEL_DIAGNOSTICS
-        private readonly string _stackTrace;
-        private readonly ChannelStats _channelStats;
-        private readonly GrpcChannelOptionsBag _channelOptions;
+        readonly string stackTrace;
+        readonly ChannelStats channelStats;
+        readonly GrpcChannelOptionsBag channelOptions;
 
-        string IGrpcChannelxDiagnosticsInfo.StackTrace => _stackTrace;
-        ChannelStats IGrpcChannelxDiagnosticsInfo.Stats => _channelStats;
-        GrpcChannelOptionsBag IGrpcChannelxDiagnosticsInfo.ChannelOptions => _channelOptions;
-        ChannelBase IGrpcChannelxDiagnosticsInfo.UnderlyingChannel => _channel;
+        string IGrpcChannelxDiagnosticsInfo.StackTrace => stackTrace;
+        ChannelStats IGrpcChannelxDiagnosticsInfo.Stats => channelStats;
+        GrpcChannelOptionsBag IGrpcChannelxDiagnosticsInfo.ChannelOptions => channelOptions;
+        ChannelBase IGrpcChannelxDiagnosticsInfo.UnderlyingChannel => channel;
 #endif
 
         public GrpcChannelx(int id, Action<GrpcChannelx> onDispose, ChannelBase channel, Uri targetUri, GrpcChannelOptionsBag channelOptions)
@@ -57,14 +52,14 @@ namespace MagicOnion
         {
             Id = id;
             TargetUri = targetUri;
-            _onDispose = onDispose;
-            _channel = channel;
-            _disposed = false;
+            this.onDispose = onDispose;
+            this.channel = channel;
+            this.disposed = false;
 
 #if UNITY_EDITOR || MAGICONION_ENABLE_CHANNEL_DIAGNOSTICS
-            _stackTrace = new System.Diagnostics.StackTrace().ToString();
-            _channelStats = new ChannelStats();
-            _channelOptions = channelOptions;
+            this.stackTrace = new System.Diagnostics.StackTrace().ToString();
+            this.channelStats = new ChannelStats();
+            this.channelOptions = channelOptions;
 #endif
         }
 
@@ -120,19 +115,15 @@ namespace MagicOnion
         {
             ThrowIfDisposed();
 #if UNITY_EDITOR || MAGICONION_ENABLE_CHANNEL_DIAGNOSTICS
-            return new ChannelStats.WrappedCallInvoker(((IGrpcChannelxDiagnosticsInfo)this).Stats, _channel.CreateCallInvoker());
+            return new ChannelStats.WrappedCallInvoker(((IGrpcChannelxDiagnosticsInfo)this).Stats, channel.CreateCallInvoker());
 #else
-            return _channel.CreateCallInvoker();
+            return channel.CreateCallInvoker();
 #endif
         }
 
         protected override async Task ShutdownAsyncCore()
         {
-#if MAGICONION_UNITASK_SUPPORT
-            await ShutdownInternalAsync();
-#else
             await ShutdownInternalAsync().ConfigureAwait(false);
-#endif
         }
 
         /// <summary>
@@ -141,15 +132,13 @@ namespace MagicOnion
         /// <param name="deadline"></param>
         /// <returns></returns>
         [Obsolete]
-#if MAGICONION_UNITASK_SUPPORT
-        public async UniTask ConnectAsync(DateTime? deadline = null)
-#else
+#pragma warning disable CS1998
         public async Task ConnectAsync(DateTime? deadline = null)
-#endif
+#pragma warning restore CS1998
         {
             ThrowIfDisposed();
-#if !USE_GRPC_NET_CLIENT_ONLY
-            if (_channel is Channel grpcCChannel)
+#if MAGICONION_USE_GRPC_CCORE
+            if (channel is Channel grpcCChannel)
             {
                 await grpcCChannel.ConnectAsync(deadline);
             }
@@ -159,29 +148,25 @@ namespace MagicOnion
         /// <inheritdoc />
         IReadOnlyCollection<ManagedStreamingHubInfo> IMagicOnionAwareGrpcChannel.GetAllManagedStreamingHubs()
         {
-            lock (_streamingHubs)
+            lock (streamingHubs)
             {
-                return _streamingHubs.Values.Select(x => x.StreamingHubInfo).ToArray();
+                return streamingHubs.Values.Select(x => x.StreamingHubInfo).ToArray();
             }
         }
 
         /// <inheritdoc />
         void IMagicOnionAwareGrpcChannel.ManageStreamingHubClient(Type streamingHubType, IStreamingHubMarker streamingHub, Func<Task> disposeAsync, Task waitForDisconnect)
         {
-            lock (_streamingHubs)
+            lock (streamingHubs)
             {
-                _streamingHubs.Add(streamingHub, (disposeAsync, new ManagedStreamingHubInfo(streamingHubType, streamingHub)));
+                streamingHubs.Add(streamingHub, (disposeAsync, new ManagedStreamingHubInfo(streamingHubType, streamingHub)));
 
                 // When the channel is disconnected, unregister it.
                 Forget(WaitForDisconnectAndDisposeAsync(streamingHub, waitForDisconnect));
             }
         }
 
-#if MAGICONION_UNITASK_SUPPORT
-        private async UniTask WaitForDisconnectAndDisposeAsync(IStreamingHubMarker streamingHub, Task waitForDisconnect)
-#else
         private async Task WaitForDisconnectAndDisposeAsync(IStreamingHubMarker streamingHub, Task waitForDisconnect)
-#endif
         {
             await waitForDisconnect;
             DisposeStreamingHubClient(streamingHub);
@@ -189,9 +174,9 @@ namespace MagicOnion
 
         private void DisposeStreamingHubClient(IStreamingHubMarker streamingHub)
         {
-            lock (_streamingHubs)
+            lock (streamingHubs)
             {
-                if (_streamingHubs.TryGetValue(streamingHub, out var disposeAsyncAndStreamingHubInfo))
+                if (streamingHubs.TryGetValue(streamingHub, out var disposeAsyncAndStreamingHubInfo))
                 {
                     try
                     {
@@ -202,7 +187,7 @@ namespace MagicOnion
                         Debug.LogException(e);
                     }
 
-                    _streamingHubs.Remove(streamingHub);
+                    streamingHubs.Remove(streamingHub);
                 }
             }
 
@@ -221,9 +206,9 @@ namespace MagicOnion
 
         private void DisposeAllManagedStreamingHubs()
         {
-            lock (_streamingHubs)
+            lock (streamingHubs)
             {
-                foreach (var streamingHub in _streamingHubs.Keys.ToArray() /* Snapshot */)
+                foreach (var streamingHub in streamingHubs.Keys.ToArray() /* Snapshot */)
                 {
                     DisposeStreamingHubClient(streamingHub);
                 }
@@ -232,9 +217,9 @@ namespace MagicOnion
 
         public void Dispose()
         {
-            if (_disposed) return;
+            if (disposed) return;
 
-            _disposed = true;
+            disposed = true;
             try
             {
                 DisposeAllManagedStreamingHubs();
@@ -242,19 +227,15 @@ namespace MagicOnion
             }
             finally
             {
-                _onDispose(this);
+                onDispose(this);
             }
         }
 
-#if MAGICONION_UNITASK_SUPPORT
-        public async UniTask DisposeAsync()
-#else
         public async Task DisposeAsync()
-#endif
         {
-            if (_disposed) return;
+            if (disposed) return;
 
-            _disposed = true;
+            disposed = true;
             try
             {
                 DisposeAllManagedStreamingHubs();
@@ -262,28 +243,22 @@ namespace MagicOnion
             }
             finally
             {
-                _onDispose(this);
+                onDispose(this);
             }
         }
 
-#if MAGICONION_UNITASK_SUPPORT
-        private async UniTask ShutdownInternalAsync()
-#else
         private async Task ShutdownInternalAsync()
-#endif
         {
-            await _channel.ShutdownAsync().ConfigureAwait(false);
+            if (shutdownRequested) return;
+            shutdownRequested = true;
+
+            await channel.ShutdownAsync().ConfigureAwait(false);
         }
 
         private void ThrowIfDisposed()
         {
-            if (_disposed) throw new ObjectDisposedException(nameof(GrpcChannelx));
+            if (disposed) throw new ObjectDisposedException(nameof(GrpcChannelx));
         }
-
-#if MAGICONION_UNITASK_SUPPORT
-        private static async void Forget(UniTask t)
-            => t.Forget();
-#endif
 
         private static async void Forget(Task t)
         {
@@ -300,25 +275,25 @@ namespace MagicOnion
 #if UNITY_EDITOR || MAGICONION_ENABLE_CHANNEL_DIAGNOSTICS
         public class ChannelStats
         {
-            private int _sentBytes = 0;
-            private int _receivedBytes = 0;
+            int sentBytes = 0;
+            int receivedBytes = 0;
 
-            private int _indexSentBytes;
-            private int _indexReceivedBytes;
-            private DateTime _prevSentBytesAt;
-            private DateTime _prevReceivedBytesAt;
-            private readonly int[] _sentBytesHistory = new int[10];
-            private readonly int[] _receivedBytesHistory = new int[10];
+            int indexSentBytes;
+            int indexReceivedBytes;
+            DateTime prevSentBytesAt;
+            DateTime prevReceivedBytesAt;
+            readonly int[] sentBytesHistory = new int[10];
+            readonly int[] receivedBytesHistory = new int[10];
 
-            public int SentBytes => _sentBytes;
-            public int ReceivedBytes => _receivedBytes;
+            public int SentBytes => sentBytes;
+            public int ReceivedBytes => receivedBytes;
 
             public int SentBytesPerSecond
             {
                 get
                 {
-                    AddValue(ref _prevSentBytesAt, ref _indexSentBytes, _sentBytesHistory, DateTime.Now, 0);
-                    return _sentBytesHistory.Sum();
+                    AddValue(ref prevSentBytesAt, ref indexSentBytes, sentBytesHistory, DateTime.Now, 0);
+                    return sentBytesHistory.Sum();
                 }
             }
 
@@ -326,21 +301,21 @@ namespace MagicOnion
             {
                 get
                 {
-                    AddValue(ref _prevReceivedBytesAt, ref _indexReceivedBytes, _receivedBytesHistory, DateTime.Now, 0);
-                    return _receivedBytesHistory.Sum();
+                    AddValue(ref prevReceivedBytesAt, ref indexReceivedBytes, receivedBytesHistory, DateTime.Now, 0);
+                    return receivedBytesHistory.Sum();
                 }
             }
 
             internal void AddSentBytes(int bytesLength)
             {
-                Interlocked.Add(ref _sentBytes, bytesLength);
-                AddValue(ref _prevSentBytesAt, ref _indexSentBytes, _sentBytesHistory, DateTime.Now, bytesLength);
+                Interlocked.Add(ref sentBytes, bytesLength);
+                AddValue(ref prevSentBytesAt, ref indexSentBytes, sentBytesHistory, DateTime.Now, bytesLength);
             }
 
             internal void AddReceivedBytes(int bytesLength)
             {
-                Interlocked.Add(ref _receivedBytes, bytesLength);
-                AddValue(ref _prevReceivedBytesAt, ref _indexReceivedBytes, _receivedBytesHistory, DateTime.Now, bytesLength);
+                Interlocked.Add(ref receivedBytes, bytesLength);
+                AddValue(ref prevReceivedBytesAt, ref indexReceivedBytes, receivedBytesHistory, DateTime.Now, bytesLength);
             }
 
             private void AddValue(ref DateTime prev, ref int index, int[] values, DateTime d, int value)
@@ -371,44 +346,44 @@ namespace MagicOnion
 
             internal class WrappedCallInvoker : CallInvoker
             {
-                private readonly CallInvoker _baseCallInvoker;
-                private readonly ChannelStats _channelStats;
+                readonly CallInvoker baseCallInvoker;
+                readonly ChannelStats channelStats;
 
 
                 public WrappedCallInvoker(ChannelStats channelStats, CallInvoker callInvoker)
                 {
-                    _channelStats = channelStats;
-                    _baseCallInvoker = callInvoker;
+                    this.channelStats = channelStats;
+                    this.baseCallInvoker = callInvoker;
                 }
 
-                public override TResponse BlockingUnaryCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string host, CallOptions options, TRequest request)
+                public override TResponse BlockingUnaryCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string? host, CallOptions options, TRequest request)
                 {
                     //Debug.Log($"Unary(Blocking): {method.FullName}");
-                    return _baseCallInvoker.BlockingUnaryCall(WrapMethod(method), host, options, request);
+                    return baseCallInvoker.BlockingUnaryCall(WrapMethod(method), host, options, request);
                 }
 
-                public override AsyncUnaryCall<TResponse> AsyncUnaryCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string host, CallOptions options, TRequest request)
+                public override AsyncUnaryCall<TResponse> AsyncUnaryCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string? host, CallOptions options, TRequest request)
                 {
                     //Debug.Log($"Unary: {method.FullName}");
-                    return _baseCallInvoker.AsyncUnaryCall(WrapMethod(method), host, options, request);
+                    return baseCallInvoker.AsyncUnaryCall(WrapMethod(method), host, options, request);
                 }
 
-                public override AsyncServerStreamingCall<TResponse> AsyncServerStreamingCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string host, CallOptions options, TRequest request)
+                public override AsyncServerStreamingCall<TResponse> AsyncServerStreamingCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string? host, CallOptions options, TRequest request)
                 {
                     //Debug.Log($"ServerStreaming: {method.FullName}");
-                    return _baseCallInvoker.AsyncServerStreamingCall(WrapMethod(method), host, options, request);
+                    return baseCallInvoker.AsyncServerStreamingCall(WrapMethod(method), host, options, request);
                 }
 
-                public override AsyncClientStreamingCall<TRequest, TResponse> AsyncClientStreamingCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string host, CallOptions options)
+                public override AsyncClientStreamingCall<TRequest, TResponse> AsyncClientStreamingCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string? host, CallOptions options)
                 {
                     //Debug.Log($"ClientStreaming: {method.FullName}");
-                    return _baseCallInvoker.AsyncClientStreamingCall(WrapMethod(method), host, options);
+                    return baseCallInvoker.AsyncClientStreamingCall(WrapMethod(method), host, options);
                 }
 
-                public override AsyncDuplexStreamingCall<TRequest, TResponse> AsyncDuplexStreamingCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string host, CallOptions options)
+                public override AsyncDuplexStreamingCall<TRequest, TResponse> AsyncDuplexStreamingCall<TRequest, TResponse>(Method<TRequest, TResponse> method, string? host, CallOptions options)
                 {
                     //Debug.Log($"DuplexStreaming: {method.FullName}");
-                    return _baseCallInvoker.AsyncDuplexStreamingCall(WrapMethod(method), host, options);
+                    return baseCallInvoker.AsyncDuplexStreamingCall(WrapMethod(method), host, options);
                 }
 
                 private Method<TRequest, TResponse> WrapMethod<TRequest, TResponse>(Method<TRequest, TResponse> method)
@@ -417,21 +392,61 @@ namespace MagicOnion
                         method.Type,
                         method.ServiceName,
                         method.Name,
-                        new Marshaller<TRequest>(x =>
+                        new Marshaller<TRequest>((request, context) =>
                         {
-                            var bytes = method.RequestMarshaller.Serializer(x);
-                            _channelStats.AddSentBytes(bytes.Length);
-                            return bytes;
-                        }, x => method.RequestMarshaller.Deserializer(x)),
-                        new Marshaller<TResponse>(x => method.ResponseMarshaller.Serializer(x), x =>
+                            var wrapper = new SerializationContextWrapper(context);
+                            method.RequestMarshaller.ContextualSerializer(request, wrapper);
+                            channelStats.AddSentBytes(wrapper.Written);
+                        }, (context) => method.RequestMarshaller.ContextualDeserializer(context)),
+                        new Marshaller<TResponse>((request, context) => method.ResponseMarshaller.ContextualSerializer(request, context), x =>
                         {
-                            _channelStats.AddReceivedBytes(x.Length);
-                            return method.ResponseMarshaller.Deserializer(x);
+                            channelStats.AddReceivedBytes(x.PayloadLength);
+                            return method.ResponseMarshaller.ContextualDeserializer(x);
                         })
                     );
 
                     return wrappedMethod;
                 }
+            }
+
+            private class SerializationContextWrapper : SerializationContext, IBufferWriter<byte>
+            {
+                readonly SerializationContext inner;
+                IBufferWriter<byte>? bufferWriter;
+                public int Written { get; private set; }
+
+                public SerializationContextWrapper(SerializationContext inner)
+                {
+                    this.inner = inner;
+                }
+
+                public override IBufferWriter<byte> GetBufferWriter()
+                    => bufferWriter ?? (bufferWriter = inner.GetBufferWriter());
+
+                public override void Complete(byte[] payload)
+                {
+                    Written = payload.Length;
+                    inner.Complete(payload);
+                }
+
+                public override void Complete()
+                    => inner.Complete();
+
+                public override void SetPayloadLength(int payloadLength)
+                {
+                    Written = payloadLength;
+                    inner.SetPayloadLength(payloadLength);
+                }
+
+                public void Advance(int count)
+                {
+                    Written += count;
+                    GetBufferWriter().Advance(count);
+                }
+
+                public Memory<byte> GetMemory(int sizeHint = 0) => GetBufferWriter().GetMemory(sizeHint);
+
+                public Span<byte> GetSpan(int sizeHint = 0) => GetBufferWriter().GetSpan(sizeHint);
             }
         }
 #endif

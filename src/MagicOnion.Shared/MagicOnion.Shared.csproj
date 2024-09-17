@@ -1,56 +1,29 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
-    <SignAssembly>true</SignAssembly>
-    <AssemblyOriginatorKeyFile>..\MagicOnion\opensource.snk</AssemblyOriginatorKeyFile>
-    <!--<nullable>enable</nullable>-->
-    <DefineConstants>TRACE;NON_UNITY</DefineConstants>
+    <TargetFrameworks>netstandard2.0;netstandard2.1;net6.0;net8.0</TargetFrameworks>
+
+    <LangVersion>$(_LangVersionUnityBaseline)</LangVersion>
+    <Nullable>enable</Nullable>
+    <DefineConstants>$(DefineConstants);NON_UNITY</DefineConstants>
 
     <RootNamespace>MagicOnion</RootNamespace>
     <Description>Provides shared classes and interfaces used by MagicOnion server and client. $(MagicOnionPackageDescription)</Description>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Grpc.Core.Api" Version="2.35.0" />
+    <PackageReference Include="PolySharp">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\MagicOnion.Abstractions\MagicOnion.Abstractions.csproj" />
+    <ProjectReference Include="..\MagicOnion.Serialization.MessagePack\MagicOnion.Serialization.MessagePack.csproj" />
   </ItemGroup>
-
-  <ItemGroup>
-    <None Include="..\MagicOnion\Icon.png" Pack="true" PackagePath="/" />
-  </ItemGroup>
-
-  <!-- T4 -->
-  <ItemGroup>
-    <None Update="DynamicArgumentTuple.tt">
-      <Generator>TextTemplatingFileGenerator</Generator>
-      <LastGenOutput>DynamicArgumentTuple.cs</LastGenOutput>
-    </None>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Service Include="{508349b6-6b84-4df5-91f0-309beebad82d}" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Update="DynamicArgumentTuple.cs">
-      <DesignTime>True</DesignTime>
-      <AutoGen>True</AutoGen>
-      <DependentUpon>DynamicArgumentTuple.tt</DependentUpon>
-    </Compile>
-  </ItemGroup>
-
-  <!-- Sync codes: MagicOnion.Shared for Unity -->
-  <PropertyGroup>
-    <DestinationRoot>$(ProjectDir)..\MagicOnion.Client.Unity\Assets\Scripts\MagicOnion\MagicOnion.Client\MagicOnion.Shared\</DestinationRoot>
-  </PropertyGroup>
-  <ItemGroup>
-    <TargetFiles Include="$(ProjectDir)**\*.cs" Exclude="**\bin\**\*.*;**\obj\**\*.*" />
-  </ItemGroup>
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Copy SourceFiles="@(TargetFiles)" DestinationFiles="$(DestinationRoot)\%(RecursiveDir)%(Filename)%(Extension)" SkipUnchangedFiles="true" />
-  </Target>
 </Project>

@@ -1,6 +1,8 @@
 public enum ScenarioType
 {
     All,
+    CI, // Run Unary, StreamingHub, PingpongStreamingHub
+
     Unary,
     UnaryComplex,
     UnaryLargePayload1K,
@@ -12,6 +14,9 @@ public enum ScenarioType
     UnaryLargePayload64K,
 
     StreamingHub,
+    StreamingHubValueTask,
+    StreamingHubComplex,
+    StreamingHubComplexValueTask,
     StreamingHubLargePayload1K,
     StreamingHubLargePayload2K,
     StreamingHubLargePayload4K,
@@ -19,4 +24,7 @@ public enum ScenarioType
     StreamingHubLargePayload16K,
     StreamingHubLargePayload32K,
     StreamingHubLargePayload64K,
+
+    PingpongStreamingHub,
+    PingpongCachedStreamingHub,
 }

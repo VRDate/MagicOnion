@@ -5,6 +5,7 @@ using PerformanceTest.Shared;
 public class UnaryScenario : IScenario
 {
     IPerfTestService client = default!;
+    readonly TimeProvider timeProvider = TimeProvider.System;
 
     public ValueTask PrepareAsync(GrpcChannel channel)
     {
@@ -12,19 +13,27 @@ public class UnaryScenario : IScenario
         return ValueTask.CompletedTask;
     }
 
-    public async ValueTask RunAsync(PerformanceTestRunningContext ctx, CancellationToken cancellationToken)
+    public async ValueTask RunAsync(int connectionId, PerformanceTestRunningContext ctx, CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
         {
-            await client.UnaryArgDynamicArgumentTupleReturnValue("Foo", 123);
+            var begin = timeProvider.GetTimestamp();
+            await client.UnaryArgDynamicArgumentTupleReturnValue("FooBarBaz🚀こんにちは世界", 123, 4567, 891011);
             ctx.Increment();
+            ctx.Latency(connectionId, timeProvider.GetElapsedTime(begin));
         }
+    }
+
+    public Task CompleteAsync()
+    {
+        return Task.CompletedTask;
     }
 }
 
 public class UnaryComplexScenario : IScenario
 {
     IPerfTestService client = default!;
+    readonly TimeProvider timeProvider = TimeProvider.System;
 
     public ValueTask PrepareAsync(GrpcChannel channel)
     {
@@ -32,12 +41,19 @@ public class UnaryComplexScenario : IScenario
         return ValueTask.CompletedTask;
     }
 
-    public async ValueTask RunAsync(PerformanceTestRunningContext ctx, CancellationToken cancellationToken)
+    public async ValueTask RunAsync(int connectionId, PerformanceTestRunningContext ctx, CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
         {
-            await client.UnaryComplexAsync("Foo", 1234567);
+            var begin = timeProvider.GetTimestamp();
+            await client.UnaryComplexAsync("FooBarBaz🚀こんにちは世界", 123, 4567, 891011);
             ctx.Increment();
+            ctx.Latency(connectionId, timeProvider.GetElapsedTime(begin));
         }
+    }
+
+    public Task CompleteAsync()
+    {
+        return Task.CompletedTask;
     }
 }

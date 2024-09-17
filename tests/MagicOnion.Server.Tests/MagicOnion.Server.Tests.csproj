@@ -1,25 +1,36 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <LangVersion>default</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
+
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\..\src\MagicOnion\opensource.snk</AssemblyOriginatorKeyFile>
+
+    <!-- CS8002: Referenced assembly '{0}' does not have a strong name. -->
+    <NoWarn>$(NoWarn);CS8002</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="FluentAssertions" Version="5.6.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="6.0.0" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.5.0" />
-    <PackageReference Include="xunit" Version="2.4.0" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.4.0" />
-    <PackageReference Include="coverlet.collector" Version="1.2.0" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.Testing" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NSubstitute" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="coverlet.collector" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\MagicOnion.Client\MagicOnion.Client.csproj" />
     <ProjectReference Include="..\..\src\MagicOnion.Server\MagicOnion.Server.csproj" />
     <ProjectReference Include="..\samples\AuthSample\AuthSample.csproj" />
+    <ProjectReference Include="..\samples\MagicOnionEngineTest\MagicOnionEngineTest.csproj" />
+    <ProjectReference Include="..\samples\MagicOnionTestServer\MagicOnionTestServer.csproj" />
   </ItemGroup>
 
   <ItemGroup>

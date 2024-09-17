@@ -5,19 +5,18 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\ChatApp.Unity\Assets\Scripts\ServerShared\**\*.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\..\..\src\MagicOnion.Abstractions\MagicOnion.Abstractions.csproj" />
-    <PackageReference Include="MagicOnion.MSBuild.Tasks" Version="4.0.0-preview.1" PrivateAssets="All" />
-    <PackageReference Include="MessagePack.MSBuild.Tasks" Version="2.1.115" PrivateAssets="All" />
   </ItemGroup>
 
-  <Target Name="GenerateMessagePack" AfterTargets="Compile">
-    <MessagePackGenerator Input=".\ChatApp.Shared.csproj" Output="..\ChatApp.Unity\Assets\Scripts\Generated\MessagePack.Generated.cs" />
+  <Target Name="RestoreLocalTools" BeforeTargets="GenerateMessagePack">
+    <Exec Command="dotnet tool restore" />
   </Target>
-  <Target Name="GenerateMagicOnion" AfterTargets="Compile">
-    <MagicOnionGenerator Input=".\ChatApp.Shared.csproj" Output="..\ChatApp.Unity\Assets\Scripts\Generated\MagicOnion.Generated.cs" />
+
+  <Target Name="GenerateMessagePack" AfterTargets="Build">
+    <PropertyGroup>
+      <_MessagePackGeneratorArguments>-i ./ChatApp.Shared.csproj -o ../ChatApp.Unity/Assets/Scripts/Generated/MessagePack.Generated.cs</_MessagePackGeneratorArguments>
+    </PropertyGroup>
+    <Exec Command="dotnet tool run mpc $(_MessagePackGeneratorArguments)" />
   </Target>
+
 </Project>

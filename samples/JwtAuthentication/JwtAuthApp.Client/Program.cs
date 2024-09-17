@@ -1,10 +1,12 @@
 using System;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
 using Grpc.Net.Client;
 using JwtAuthApp.Shared;
 using MagicOnion.Client;
+using MessagePack;
 
 namespace JwtAuthApp.Client
 {
@@ -61,7 +63,6 @@ namespace JwtAuthApp.Client
                         { "Authorization", "Bearer " + AuthenticationTokenStorage.Current.Token }
                     }));
                 await timerHubClient.SetAsync(TimeSpan.FromSeconds(5));
-                await Task.Yield(); // NOTE: Release the gRPC's worker thread here.
             }
 
             // 6. Insufficient privilege (The current user is not in administrators role).
@@ -123,12 +124,12 @@ namespace JwtAuthApp.Client
 
                 AuthenticationTokenStorage.Current.Update(authResult.Token, authResult.Expiration); // NOTE: You can also read the token expiration date from JWT.
 
-                context.CallOptions.Headers.Remove(new Metadata.Entry("Authorization", string.Empty));
+                context.CallOptions.Headers?.Remove(new Metadata.Entry("Authorization", string.Empty));
             }
 
-            if (!context.CallOptions.Headers.Contains(new Metadata.Entry("Authorization", string.Empty)))
+            if (!context.CallOptions.Headers?.Contains(new Metadata.Entry("Authorization", string.Empty)) ?? false)
             {
-                context.CallOptions.Headers.Add("Authorization", "Bearer " + AuthenticationTokenStorage.Current.Token);
+                context.CallOptions.Headers?.Add("Authorization", "Bearer " + AuthenticationTokenStorage.Current.Token);
             }
 
             return await next(context);
@@ -143,7 +144,7 @@ namespace JwtAuthApp.Client
 
         private readonly object _syncObject = new object();
 
-        public string Token { get; private set; }
+        public string? Token { get; private set; }
         public DateTimeOffset Expiration { get; private set; }
 
         public bool IsExpired => Token == null || Expiration < DateTimeOffset.Now;

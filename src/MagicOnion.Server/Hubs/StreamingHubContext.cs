@@ -1,144 +1,170 @@
-using MagicOnion.Utils;
+using MagicOnion.Internal.Buffers;
 using MessagePack;
-using System;
 using System.Collections.Concurrent;
-using System.Threading.Tasks;
+using MagicOnion.Internal;
+using Microsoft.Extensions.ObjectPool;
 
-namespace MagicOnion.Server.Hubs
+namespace MagicOnion.Server.Hubs;
+
+internal class StreamingHubContextPool
 {
-    public class StreamingHubContext
+    const int MaxRetainedCount = 16;
+    readonly ObjectPool<StreamingHubContext> pool = new DefaultObjectPool<StreamingHubContext>(new Policy(), MaxRetainedCount);
+
+    public static StreamingHubContextPool Shared { get; } = new();
+
+    public StreamingHubContext Get() => pool.Get();
+    public void Return(StreamingHubContext ctx) => pool.Return(ctx);
+
+    class Policy : IPooledObjectPolicy<StreamingHubContext>
     {
-        ConcurrentDictionary<string, object>? items;
-
-        /// <summary>Object storage per invoke.</summary>
-        public ConcurrentDictionary<string, object> Items
+        public StreamingHubContext Create()
         {
-            get
-            {
-                lock (this) // lock per self! is this dangerous?
-                {
-                    if (items == null) items = new ConcurrentDictionary<string, object>();
-                }
-                return items;
-            }
+            return new StreamingHubContext();
         }
 
-        /// <summary>Raw gRPC Context.</summary>
-        public ServiceContext ServiceContext { get; internal set; } = default!; /* lateinit */
-        public object HubInstance { get; internal set; } = default!; /* lateinit */
-
-        public ReadOnlyMemory<byte> Request { get; internal set; }
-        public string Path { get; internal set; } = default!; /* lateinit */
-        public DateTime Timestamp { get; internal set; }
-
-        // helper for reflection
-        internal MessagePackSerializerOptions SerializerOptions { get; set; } = default!; /* lateinit */
-        public Guid ConnectionId => ServiceContext.ContextId;
-
-        // public AsyncLock AsyncWriterLock { get; internal set; } = default!; /* lateinit */
-        internal int MessageId { get; set; }
-        internal int MethodId { get; set; }
-
-        internal int responseSize = -1;
-        internal Type? responseType;
-
-        // helper for reflection
-        internal async ValueTask WriteResponseMessageNil(Task value)
+        public bool Return(StreamingHubContext obj)
         {
-            if (MessageId == -1) // don't write.
-            {
-                return;
-            }
-
-            // MessageFormat:
-            // response:  [messageId, methodId, response]
-            byte[] BuildMessage()
-            {
-                using (var buffer = ArrayPoolBufferWriter.RentThreadStaticWriter())
-                {
-                    var writer = new MessagePackWriter(buffer);
-
-                    writer.WriteArrayHeader(3);
-                    writer.Write(MessageId);
-                    writer.Write(MethodId);
-                    writer.WriteNil();
-                    writer.Flush();
-                    return buffer.WrittenSpan.ToArray();
-                }
-            }
-
-            await value.ConfigureAwait(false);
-            var result = BuildMessage();
-            ServiceContext.QueueResponseStreamWrite(result);
-            responseSize = result.Length;
-            responseType = typeof(Nil);
+            obj.Uninitialize();
+            return true;
         }
+    }
+}
 
-        internal async ValueTask WriteResponseMessage<T>(Task<T> value)
+public class StreamingHubContext
+{
+    IStreamingServiceContext<StreamingHubPayload, StreamingHubPayload> streamingServiceContext = default!;
+    ConcurrentDictionary<string, object>? items;
+    StreamingHubHandler handler = default!;
+
+    /// <summary>Object storage per invoke.</summary>
+    public ConcurrentDictionary<string, object> Items
+    {
+        get
         {
-            if (MessageId == -1) // don't write.
+            lock (this) // lock per self! is this dangerous?
             {
-                return;
+                if (items == null) items = new ConcurrentDictionary<string, object>();
             }
-
-            // MessageFormat:
-            // response:  [messageId, methodId, response]
-            byte[] BuildMessage(T v)
-            {
-                using (var buffer = ArrayPoolBufferWriter.RentThreadStaticWriter())
-                {
-                    var writer = new MessagePackWriter(buffer);
-                    writer.WriteArrayHeader(3);
-                    writer.Write(MessageId);
-                    writer.Write(MethodId);
-                    MessagePackSerializer.Serialize(ref writer, v, SerializerOptions);
-                    writer.Flush();
-                    return buffer.WrittenSpan.ToArray();
-                }
-            }
-            
-            var vv = await value.ConfigureAwait(false);
-            byte[] result = BuildMessage(vv);
-            ServiceContext.QueueResponseStreamWrite(result);
-            responseSize = result.Length;
-            responseType = typeof(T);
+            return items;
         }
+    }
 
-        internal ValueTask WriteErrorMessage(int statusCode, string detail, Exception? ex, bool isReturnExceptionStackTraceInErrorDetail)
+    public string Path => handler.ToString();
+    public ILookup<Type, Attribute> AttributeLookup => handler.AttributeLookup;
+
+    public object HubInstance { get; private set; } = default!;
+
+    public ReadOnlyMemory<byte> Request { get; private set; }
+    public DateTime Timestamp { get; private set; }
+
+    public Guid ConnectionId => streamingServiceContext.ContextId;
+
+    public IServiceContext ServiceContext => streamingServiceContext;
+
+    internal int MessageId { get; private set; }
+    internal int MethodId => handler.MethodId;
+
+    internal int ResponseSize { get; private set; } = -1;
+    internal Type? ResponseType { get; private set; }
+
+    internal void Initialize(StreamingHubHandler handler, IStreamingServiceContext<StreamingHubPayload, StreamingHubPayload> streamingServiceContext, object hubInstance, ReadOnlyMemory<byte> request, DateTime timestamp, int messageId)
+    {
+        this.handler = handler;
+        this.streamingServiceContext = streamingServiceContext;
+        HubInstance = hubInstance;
+        Request = request;
+        Timestamp = timestamp;
+        MessageId = messageId;
+    }
+
+    internal void Uninitialize()
+    {
+        handler = default!;
+        streamingServiceContext = default!;
+        HubInstance = default!;
+        Request = default!;
+        Timestamp = default!;
+        MessageId = default!;
+        ResponseSize = -1;
+        items?.Clear();
+    }
+
+    // helper for reflection
+    internal ValueTask WriteResponseMessageNil(ValueTask value)
+    {
+        if (MessageId == -1) // No need to write a response. We do not write response.
         {
-            // MessageFormat:
-            // error-response:  [messageId, statusCode, detail, StringMessage]
-            byte[] BuildMessage()
-            {
-                using (var buffer = ArrayPoolBufferWriter.RentThreadStaticWriter())
-                {
-                    var writer = new MessagePackWriter(buffer);
-                    writer.WriteArrayHeader(4);
-                    writer.Write(MessageId);
-                    writer.Write(statusCode);
-                    writer.Write(detail);
-
-                    var msg = (isReturnExceptionStackTraceInErrorDetail && ex != null)
-                        ? ex.ToString()
-                        : null;
-
-                    if (msg != null)
-                    {
-                        MessagePackSerializer.Serialize(ref writer, msg, SerializerOptions);
-                    }
-                    else
-                    {
-                        writer.WriteNil();
-                    }
-                    writer.Flush();
-                    return buffer.WrittenSpan.ToArray();
-                }
-            }
-
-            var result = BuildMessage();
-            ServiceContext.QueueResponseStreamWrite(result);
-            responseSize = result.Length;
             return default;
         }
+
+        ResponseType = typeof(Nil);
+        if (value.IsCompletedSuccessfully)
+        {
+            WriteMessageCore(BuildMessage());
+            return default;
+        }
+        return Await(this, value);
+
+        static async ValueTask Await(StreamingHubContext ctx, ValueTask value)
+        {
+            await value.ConfigureAwait(false);
+            ctx.WriteMessageCore(ctx.BuildMessage());
+        }
+    }
+
+    internal ValueTask WriteResponseMessage<T>(ValueTask<T> value)
+    {
+        if (MessageId == -1) // No need to write a response. We do not write response.
+        {
+            return default;
+        }
+
+        ResponseType = typeof(T);
+        if (value.IsCompletedSuccessfully)
+        {
+            WriteMessageCore(BuildMessage(value.Result));
+            return default;
+        }
+        return Await(this, value);
+
+        static async ValueTask Await(StreamingHubContext ctx, ValueTask<T> value)
+        {
+            var vv = await value.ConfigureAwait(false);
+            ctx.WriteMessageCore(ctx.BuildMessage(vv));
+        }
+    }
+
+    internal ValueTask WriteErrorMessage(int statusCode, string detail, Exception? ex, bool isReturnExceptionStackTraceInErrorDetail)
+    {
+        WriteMessageCore(BuildMessageForError(statusCode, detail, ex, isReturnExceptionStackTraceInErrorDetail));
+        return default;
+    }
+
+    void WriteMessageCore(StreamingHubPayload payload)
+    {
+        ResponseSize = payload.Length; // NOTE: We cannot use the payload after QueueResponseStreamWrite.
+        streamingServiceContext.QueueResponseStreamWrite(payload);
+    }
+
+    StreamingHubPayload BuildMessage()
+    {
+        using var buffer = ArrayPoolBufferWriter.RentThreadStaticWriter();
+        StreamingHubMessageWriter.WriteResponseMessage(buffer, MethodId, MessageId);
+        return StreamingHubPayloadPool.Shared.RentOrCreate(buffer.WrittenSpan);
+    }
+
+    StreamingHubPayload BuildMessage<T>(T v)
+    {
+        using var buffer = ArrayPoolBufferWriter.RentThreadStaticWriter();
+        StreamingHubMessageWriter.WriteResponseMessage(buffer, MethodId, MessageId, v, streamingServiceContext.MessageSerializer);
+        return StreamingHubPayloadPool.Shared.RentOrCreate(buffer.WrittenSpan);
+    }
+
+    StreamingHubPayload BuildMessageForError(int statusCode, string detail, Exception? ex, bool isReturnExceptionStackTraceInErrorDetail)
+    {
+        using var buffer = ArrayPoolBufferWriter.RentThreadStaticWriter();
+        StreamingHubMessageWriter.WriteResponseMessageForError(buffer, MessageId, statusCode, detail, ex, isReturnExceptionStackTraceInErrorDetail);
+        return StreamingHubPayloadPool.Shared.RentOrCreate(buffer.WrittenSpan);
     }
 }
