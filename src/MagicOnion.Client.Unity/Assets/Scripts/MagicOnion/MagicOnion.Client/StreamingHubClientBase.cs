@@ -10,6 +10,7 @@ using Grpc.Core;
 using MagicOnion.Internal;
 using MagicOnion.Serialization;
 using MagicOnion.Internal.Buffers;
+using MagicOnion.Client.Internal;
 
 namespace MagicOnion.Client
 {
@@ -24,24 +25,14 @@ namespace MagicOnion.Client
         public TimeSpan? ClientHeartbeatTimeout { get; }
         public Action<ServerHeartbeatEvent>? OnServerHeartbeatReceived { get; }
         public Action<ClientHeartbeatEvent>? OnClientHeartbeatResponseReceived { get; }
-#if NON_UNITY
         public TimeProvider? TimeProvider { get; }
-#endif
 
         public StreamingHubClientOptions(string? host, CallOptions callOptions, IMagicOnionSerializerProvider serializerProvider, IMagicOnionClientLogger logger)
-#if NON_UNITY
             : this(host, callOptions, serializerProvider, logger, default, default, default, default, default)
-#else
-            : this(host, callOptions, serializerProvider, logger, default, default, default, default)
-#endif
         {
         }
 
-#if NON_UNITY
         public StreamingHubClientOptions(string? host, CallOptions callOptions, IMagicOnionSerializerProvider serializerProvider, IMagicOnionClientLogger logger, TimeSpan? clientHeartbeatInterval, TimeSpan? clientHeartbeatTimeout, Action<ServerHeartbeatEvent>? onServerHeartbeatReceived, Action<ClientHeartbeatEvent>? onClientHeartbeatResponseReceived,TimeProvider? timeProvider)
-#else
-        public StreamingHubClientOptions(string? host, CallOptions callOptions, IMagicOnionSerializerProvider serializerProvider, IMagicOnionClientLogger logger, TimeSpan? clientHeartbeatInterval, TimeSpan? clientHeartbeatTimeout, Action<ServerHeartbeatEvent>? onServerHeartbeatReceived, Action<ClientHeartbeatEvent>? onClientHeartbeatResponseReceived)
-#endif
         {
             Host = host;
             CallOptions = callOptions;
@@ -51,9 +42,7 @@ namespace MagicOnion.Client
             ClientHeartbeatTimeout = clientHeartbeatTimeout;
             OnServerHeartbeatReceived = onServerHeartbeatReceived;
             OnClientHeartbeatResponseReceived = onClientHeartbeatResponseReceived;
-#if NON_UNITY
             TimeProvider = timeProvider;
-#endif
         }
 
         public static StreamingHubClientOptions CreateWithDefault(string? host = default, CallOptions callOptions = default, IMagicOnionSerializerProvider? serializerProvider = default, IMagicOnionClientLogger? logger = default)
@@ -62,31 +51,23 @@ namespace MagicOnion.Client
         public StreamingHubClientOptions WithHost(string? host)
             => new(host, CallOptions, SerializerProvider, Logger
                 , ClientHeartbeatInterval, ClientHeartbeatTimeout, OnServerHeartbeatReceived, OnClientHeartbeatResponseReceived
-#if NON_UNITY
                 , TimeProvider
-#endif
             );
         public StreamingHubClientOptions WithCallOptions(CallOptions callOptions)
             => new(Host, callOptions, SerializerProvider, Logger
                 , ClientHeartbeatInterval, ClientHeartbeatTimeout, OnServerHeartbeatReceived, OnClientHeartbeatResponseReceived
-#if NON_UNITY
                 , TimeProvider
-#endif
             );
         public StreamingHubClientOptions WithSerializerProvider(IMagicOnionSerializerProvider serializerProvider)
             => new(
                 Host, CallOptions, serializerProvider, Logger
                 , ClientHeartbeatInterval, ClientHeartbeatTimeout, OnServerHeartbeatReceived, OnClientHeartbeatResponseReceived
-#if NON_UNITY
                 , TimeProvider
-#endif
             );
         public StreamingHubClientOptions WithLogger(IMagicOnionClientLogger logger)
             => new(Host, CallOptions, SerializerProvider, logger
                 , ClientHeartbeatInterval, ClientHeartbeatTimeout, OnServerHeartbeatReceived, OnClientHeartbeatResponseReceived
-#if NON_UNITY
                 , TimeProvider
-#endif
             );
 
         /// <summary>
@@ -97,9 +78,7 @@ namespace MagicOnion.Client
         public StreamingHubClientOptions WithClientHeartbeatInterval(TimeSpan? interval)
             => new(Host, CallOptions, SerializerProvider, Logger
                 , interval, ClientHeartbeatTimeout, OnServerHeartbeatReceived, OnClientHeartbeatResponseReceived
-#if NON_UNITY
                 , TimeProvider
-#endif
             );
 
         /// <summary>
@@ -110,9 +89,7 @@ namespace MagicOnion.Client
         public StreamingHubClientOptions WithClientHeartbeatTimeout(TimeSpan? timeout)
             => new(Host, CallOptions, SerializerProvider, Logger
                 , ClientHeartbeatInterval, timeout, OnServerHeartbeatReceived, OnClientHeartbeatResponseReceived
-#if NON_UNITY
                 , TimeProvider
-#endif
             );
 
         /// <summary>
@@ -123,9 +100,7 @@ namespace MagicOnion.Client
         public StreamingHubClientOptions WithServerHeartbeatReceived(Action<ServerHeartbeatEvent>? onServerHeartbeatReceived)
             => new(Host, CallOptions, SerializerProvider, Logger
                 , ClientHeartbeatInterval, ClientHeartbeatTimeout, onServerHeartbeatReceived, OnClientHeartbeatResponseReceived
-#if NON_UNITY
                 , TimeProvider
-#endif
             );
 
         /// <summary>
@@ -136,12 +111,9 @@ namespace MagicOnion.Client
         public StreamingHubClientOptions WithClientHeartbeatResponseReceived(Action<ClientHeartbeatEvent>? onClientHeartbeatResponseReceived)
             => new(Host, CallOptions, SerializerProvider, Logger
                 , ClientHeartbeatInterval, ClientHeartbeatTimeout, OnServerHeartbeatReceived, onClientHeartbeatResponseReceived
-#if NON_UNITY
                 , TimeProvider
-#endif
             );
 
-#if NON_UNITY
         /// <summary>
         /// Sets a <see cref="TimeProvider"/>
         /// </summary>
@@ -152,10 +124,9 @@ namespace MagicOnion.Client
                 , ClientHeartbeatInterval, ClientHeartbeatTimeout, OnServerHeartbeatReceived, OnClientHeartbeatResponseReceived
                 , timeProvider
             );
-#endif
     }
 
-    public abstract class StreamingHubClientBase<TStreamingHub, TReceiver>
+    public abstract class StreamingHubClientBase<TStreamingHub, TReceiver> : IStreamingHubClient
         where TStreamingHub : IStreamingHub<TStreamingHub, TReceiver>
     {
 #pragma warning disable IDE1006 // Naming Styles
@@ -170,13 +141,14 @@ namespace MagicOnion.Client
         readonly Method<StreamingHubPayload, StreamingHubPayload> duplexStreamingConnectMethod;
         // {messageId, TaskCompletionSource}
         readonly Dictionary<int, IStreamingHubResponseTaskSource> responseFutures = new();
-        readonly TaskCompletionSource<bool> waitForDisconnect = new();
-        readonly CancellationTokenSource cancellationTokenSource = new();
+        readonly TaskCompletionSource<DisconnectionReason> waitForDisconnect = new();
+        readonly CancellationTokenSource subscriptionCts = new();
         readonly Dictionary<int, SendOrPostCallback> postCallbackCache = new();
-
 
         int messageIdSequence = 0;
         bool disposed;
+        bool disconnected;
+        int cleanupSentinel = 0; // 0 = false, 1 = true
 
         readonly Channel<StreamingHubPayload> writerQueue = Channel.CreateUnbounded<StreamingHubPayload>(new UnboundedChannelOptions() { SingleReader = true, SingleWriter = false, AllowSynchronousContinuations = false });
         Task? writerTask;
@@ -199,7 +171,7 @@ namespace MagicOnion.Client
         }
 
         // call immediately after create.
-        internal async Task __ConnectAndSubscribeAsync(CancellationToken cancellationToken)
+        internal async Task __ConnectAndSubscribeAsync(CancellationToken connectAndSubscribeCancellationToken)
         {
             var syncContext = SynchronizationContext.Current; // capture SynchronizationContext.
             var callResult = callInvoker.AsyncDuplexStreamingCall(duplexStreamingConnectMethod, options.Host, options.CallOptions);
@@ -220,7 +192,7 @@ namespace MagicOnion.Client
                 var headers = await callResult.ResponseHeadersAsync.ConfigureAwait(false);
                 messageVersion = headers.FirstOrDefault(x => x.Key == StreamingHubVersionHeaderKey);
 
-                cancellationToken.ThrowIfCancellationRequested();
+                connectAndSubscribeCancellationToken.ThrowIfCancellationRequested();
 
                 // Check message version of StreamingHub.
                 if (messageVersion != null && messageVersion.Value != StreamingHubVersionHeaderValue)
@@ -233,7 +205,26 @@ namespace MagicOnion.Client
                 throw new RpcException(e.Status, $"Failed to connect to StreamingHub '{duplexStreamingConnectMethod.ServiceName}'. ({e.Status})");
             }
 
-            var firstMoveNextTask = reader.MoveNext(CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cancellationTokenSource.Token).Token);
+            // Set up the Heartbeat Manager
+            heartbeatManager = new StreamingHubClientHeartbeatManager(
+                writerQueue.Writer,
+                options.ClientHeartbeatInterval ?? TimeSpan.Zero /* Disable */,
+                options.ClientHeartbeatTimeout ?? Timeout.InfiniteTimeSpan,
+                options.OnServerHeartbeatReceived,
+                options.OnClientHeartbeatResponseReceived,
+                syncContext,
+                options.TimeProvider ?? TimeProvider.System
+            );
+
+            // Activate the Heartbeat Manager if enabled in the options.
+            var subscriptionToken = subscriptionCts.Token;
+            if (options.ClientHeartbeatInterval is { } heartbeatInterval && heartbeatInterval > TimeSpan.Zero)
+            {
+                heartbeatManager.StartClientHeartbeatLoop();
+                subscriptionToken = CancellationTokenSource.CreateLinkedTokenSource(heartbeatManager.TimeoutToken, subscriptionCts.Token).Token;
+            }
+
+            var firstMoveNextTask = reader.MoveNext(CancellationTokenSource.CreateLinkedTokenSource(connectAndSubscribeCancellationToken, subscriptionToken).Token);
             if (firstMoveNextTask.IsFaulted || messageVersion == null)
             {
                 // NOTE: Grpc.Net:
@@ -249,7 +240,7 @@ namespace MagicOnion.Client
                 throw new RpcException(new Status(StatusCode.Internal, $"The request started successfully (StatusCode = OK), but the StreamingHub client has failed to negotiate with the server."));
             }
 
-            this.subscription = StartSubscribe(syncContext, firstMoveNextTask);
+            this.subscription = StartSubscribe(syncContext, firstMoveNextTask, subscriptionToken);
         }
 
         // Helper methods to make building clients easy.
@@ -267,31 +258,10 @@ namespace MagicOnion.Client
         static Method<StreamingHubPayload, StreamingHubPayload> CreateConnectMethod(string serviceName)
             => new (MethodType.DuplexStreaming, serviceName, "Connect", MagicOnionMarshallers.StreamingHubMarshaller, MagicOnionMarshallers.StreamingHubMarshaller);
 
-        async Task StartSubscribe(SynchronizationContext? syncContext, Task<bool> firstMoveNext)
+        async Task StartSubscribe(SynchronizationContext? syncContext, Task<bool> firstMoveNext, CancellationToken subscriptionToken)
         {
-            var cancellationToken = cancellationTokenSource.Token;
-
-            heartbeatManager = new StreamingHubClientHeartbeatManager(
-                writerQueue.Writer,
-                options.ClientHeartbeatInterval ?? TimeSpan.Zero /* Disable */,
-                options.ClientHeartbeatTimeout ?? Timeout.InfiniteTimeSpan,
-                options.OnServerHeartbeatReceived,
-                options.OnClientHeartbeatResponseReceived,
-                syncContext,
-                cancellationTokenSource.Token
-#if NON_UNITY
-                , options.TimeProvider ?? TimeProvider.System
-#endif
-            );
-
-            // Activate the Heartbeat Manager if enabled in the options.
-            if (options.ClientHeartbeatInterval is {} heartbeatInterval && heartbeatInterval > TimeSpan.Zero)
-            {
-                heartbeatManager.StartClientHeartbeatLoop();
-                cancellationToken = CancellationTokenSource.CreateLinkedTokenSource(heartbeatManager.TimeoutToken, cancellationTokenSource.Token).Token;
-            }
-
-            writerTask = RunWriterLoopAsync(cancellationToken);
+            var disconnectionReason = new DisconnectionReason(DisconnectionType.CompletedNormally, null);
+            writerTask = RunWriterLoopAsync(subscriptionToken);
 
             var reader = this.reader;
             try
@@ -309,7 +279,7 @@ namespace MagicOnion.Client
                         // log post on main thread.
                         if (syncContext != null)
                         {
-                            syncContext.Post(state => logger.Error((Exception)state!, msg), ex);
+                            syncContext.Post(s => logger.Error((Exception)s!, msg), ex);
                         }
                         else
                         {
@@ -317,29 +287,39 @@ namespace MagicOnion.Client
                         }
                     }
 
-                    moveNext = reader.MoveNext(cancellationToken);
+                    moveNext = reader.MoveNext(subscriptionToken);
                 }
             }
             catch (Exception ex)
             {
-                if (ex is OperationCanceledException)
+                // When terminating by Heartbeat or DisposeAsync, a RpcException with a Status of Canceled is thrown.
+                // If `ex.InnerException` is OperationCanceledException` and `subscriptionToken.IsCancellationRequested` is true, it is treated as a normal cancellation.
+                if ((ex is OperationCanceledException oce) ||
+                    (ex is RpcException { InnerException: OperationCanceledException } && subscriptionToken.IsCancellationRequested))
                 {
+                    if (heartbeatManager.TimeoutToken.IsCancellationRequested)
+                    {
+                        disconnectionReason = new DisconnectionReason(DisconnectionType.TimedOut, ex);
+                    }
                     return;
                 }
+
                 const string msg = "An error occurred while subscribing to messages.";
                 // log post on main thread.
                 if (syncContext != null)
                 {
-                    syncContext.Post(state => logger.Error((Exception)state!, msg), ex);
+                    syncContext.Post(s => logger.Error((Exception)s!, msg), ex);
                 }
                 else
                 {
                     logger.Error(ex, msg);
                 }
+
+                disconnectionReason = new DisconnectionReason(DisconnectionType.Faulted, ex);
             }
             finally
             {
-                heartbeatManager.Dispose();
+                disconnected = true;
 
                 try
                 {
@@ -351,11 +331,12 @@ namespace MagicOnion.Client
                         SynchronizationContext.SetSynchronizationContext(syncContext);
                     }
 #endif
-                    await DisposeAsyncCore(false).ConfigureAwait(false);
+                    await heartbeatManager.DisposeAsync().ConfigureAwait(false);
+                    await CleanupAsync(false).ConfigureAwait(false);
                 }
                 finally
                 {
-                    waitForDisconnect.TrySetResult(true);
+                    waitForDisconnect.TrySetResult(disconnectionReason);
                 }
             }
         }
@@ -408,9 +389,9 @@ namespace MagicOnion.Client
 
         SendOrPostCallback CreateBroadcastCallback(int methodId, int consumed)
         {
-            return (state) =>
+            return (s) =>
             {
-                var p = (StreamingHubPayload)state!;
+                var p = (StreamingHubPayload)s!;
                 this.OnBroadcastEvent(methodId, p.Memory.Slice(consumed));
                 StreamingHubPayloadPool.Shared.Return(p);
             };
@@ -492,16 +473,21 @@ namespace MagicOnion.Client
 
         async Task RunWriterLoopAsync(CancellationToken cancellationToken)
         {
-            while (!cancellationToken.IsCancellationRequested)
+            try
             {
-                if (await writerQueue.Reader.WaitToReadAsync(default).ConfigureAwait(false))
+                while (!cancellationToken.IsCancellationRequested)
                 {
-                    while (writerQueue.Reader.TryRead(out var payload))
+                    if (await writerQueue.Reader.WaitToReadAsync(default).ConfigureAwait(false))
                     {
-                        await writer.WriteAsync(payload).ConfigureAwait(false);
+                        while (writerQueue.Reader.TryRead(out var payload))
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            await writer.WriteAsync(payload).ConfigureAwait(false);
+                        }
                     }
                 }
             }
+            catch { /* Ignore */ }
         }
 
         protected Task<TResponse> WriteMessageFireAndForgetTaskAsync<TRequest, TResponse>(int methodId, TRequest message)
@@ -510,6 +496,7 @@ namespace MagicOnion.Client
         protected ValueTask<TResponse> WriteMessageFireAndForgetValueTaskOfTAsync<TRequest, TResponse>(int methodId, TRequest message)
         {
             ThrowIfDisposed();
+            ThrowIfDisconnected();
 
             var v = BuildRequestMessage(methodId, message);
             _ = writerQueue.Writer.TryWrite(v);
@@ -529,6 +516,7 @@ namespace MagicOnion.Client
         protected ValueTask<TResponse> WriteMessageWithResponseValueTaskOfTAsync<TRequest, TResponse>(int methodId, TRequest message)
         {
             ThrowIfDisposed();
+            ThrowIfDisconnected();
 
             var mid = Interlocked.Increment(ref messageIdSequence);
 
@@ -539,7 +527,11 @@ namespace MagicOnion.Client
             }
 
             var v = BuildRequestMessage(methodId, mid, message);
-            _ = writerQueue.Writer.TryWrite(v);
+            if (!writerQueue.Writer.TryWrite(v))
+            {
+                // If the channel writer is closed, it is likely that the connection has already been disconnected.
+                ThrowIfDisconnected();
+            }
 
             return new ValueTask<TResponse>(taskSource, taskSource.Version); // wait until server return response(or error). if connection was closed, throws cancellation from DisposeAsyncCore.
         }
@@ -547,6 +539,7 @@ namespace MagicOnion.Client
         protected ValueTask WriteMessageWithResponseValueTaskAsync<TRequest, TResponse>(int methodId, TRequest message)
         {
             ThrowIfDisposed();
+            ThrowIfDisconnected();
 
             var mid = Interlocked.Increment(ref messageIdSequence);
 
@@ -557,7 +550,11 @@ namespace MagicOnion.Client
             }
 
             var v = BuildRequestMessage(methodId, mid, message);
-            _ = writerQueue.Writer.TryWrite(v);
+            if (!writerQueue.Writer.TryWrite(v))
+            {
+                // If the channel writer is closed, it is likely that the connection has already been disconnected.
+                ThrowIfDisconnected();
+            }
 
             return new ValueTask(taskSource, taskSource.Version); // wait until server return response(or error). if connection was closed, throws cancellation from DisposeAsyncCore.
         }
@@ -625,31 +622,43 @@ namespace MagicOnion.Client
             return Task.CompletedTask;
         }
 
+        void ThrowIfDisconnected()
+        {
+            if (disconnected)
+            {
+                throw new RpcException(new Status(StatusCode.Unavailable, $"The StreamingHubClient has already been disconnected from the server."));
+            }
+        }
+
         void ThrowIfDisposed()
         {
             if (disposed)
             {
-                throw new ObjectDisposedException("StreamingHubClient", $"The StreamingHub has already been disconnected from the server.");
+                throw new ObjectDisposedException("StreamingHubClient", $"The StreamingHubClient has already been disconnected from the server.");
             }
         }
 
         public Task WaitForDisconnect()
-        {
-            return waitForDisconnect.Task;
-        }
+            => ((IStreamingHubClient)this).WaitForDisconnectAsync();
 
-        public Task DisposeAsync()
-        {
-            return DisposeAsyncCore(true);
-        }
+        Task<DisconnectionReason> IStreamingHubClient.WaitForDisconnectAsync()
+            => waitForDisconnect.Task;
 
-        async Task DisposeAsyncCore(bool waitSubscription)
+        public async Task DisposeAsync()
         {
             if (disposed) return;
-            if (writer == null) return;
-
             disposed = true;
+            await CleanupAsync(true).ConfigureAwait(false);
+        }
 
+        async ValueTask CleanupAsync(bool waitSubscription)
+        {
+            if (Interlocked.CompareExchange(ref cleanupSentinel, 1, 0) != 0)
+            {
+                return;
+            }
+
+            if (writer == null) return;
             try
             {
                 writerQueue.Writer.Complete();
@@ -658,8 +667,7 @@ namespace MagicOnion.Client
             catch { } // ignore error?
             finally
             {
-                cancellationTokenSource.Cancel();
-                cancellationTokenSource.Dispose();
+                subscriptionCts.Cancel();
                 try
                 {
                     if (waitSubscription)
@@ -700,6 +708,7 @@ namespace MagicOnion.Client
                     }
                 }
             }
+            subscriptionCts.Dispose();
         }
 
         StreamingHubPayload BuildRequestMessage<T>(int methodId, T message)

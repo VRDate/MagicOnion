@@ -1,10 +1,9 @@
-#if NON_UNITY || ((!ENABLE_IL2CPP || UNITY_EDITOR) && !NET_STANDARD_2_0)
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Text;
 using Grpc.Core;
 using MagicOnion.Client.Internal;
 using MagicOnion.Serialization;
@@ -21,6 +20,7 @@ namespace MagicOnion.Client.DynamicClient
         }
     }
 
+    [RequiresUnreferencedCode(nameof(DynamicClientBuilder<T>) + " is incompatible with trimming and Native AOT.")]
     internal class DynamicClientBuilder<T> : DynamicClientBuilder
         where T : IService<T>
     {
@@ -286,4 +286,3 @@ namespace MagicOnion.Client.DynamicClient
         }
     }
 }
-#endif

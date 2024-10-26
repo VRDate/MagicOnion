@@ -1,12 +1,12 @@
-#if NON_UNITY || ((!ENABLE_IL2CPP || UNITY_EDITOR) && !NET_STANDARD_2_0)
-
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 
 namespace MagicOnion.Internal.Reflection
 {
+    [RequiresUnreferencedCode(nameof(DynamicAssembly) + " is incompatible with trimming and Native AOT.")]
 #if ENABLE_SAVE_ASSEMBLY
     public
 #else
@@ -94,5 +94,3 @@ namespace System.Runtime.CompilerServices
         public string AssemblyName { get; }
     }
 }
-
-#endif

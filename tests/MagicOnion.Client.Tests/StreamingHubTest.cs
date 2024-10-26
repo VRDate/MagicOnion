@@ -1,6 +1,7 @@
 using MagicOnion.Client.DynamicClient;
 using Microsoft.Extensions.Time.Testing;
 using System.Buffers;
+using System.Reflection;
 
 namespace MagicOnion.Client.Tests;
 
@@ -461,13 +462,13 @@ public class StreamingHubTest
         var request1 = await helper.ReadRequestRawAsync();
         var request2 = await helper.ReadRequestRawAsync();
         var request3 = await helper.ReadRequestRawAsync();
-        Assert.Equal((byte[])[0x94 /* Array(4) */, 0x7e /* 0x7e(127) */, 0x00 /* Sequence(0) */, .. ToMessagePackBytes(origin.AddMilliseconds(100)) /* ServerSentAt */, 0xc0 /* Nil */], request1.ToArray());
-        Assert.Equal((byte[])[0x94 /* Array(4) */, 0x7e /* 0x7e(127) */, 0x01 /* Sequence(1) */, .. ToMessagePackBytes(origin.AddMilliseconds(200)) /* ServerSentAt */, 0xc0 /* Nil */], request2.ToArray());
-        Assert.Equal((byte[])[0x94 /* Array(4) */, 0x7e /* 0x7e(127) */, 0x02 /* Sequence(2) */, .. ToMessagePackBytes(origin.AddMilliseconds(300)) /* ServerSentAt */, 0xc0 /* Nil */], request3.ToArray());
+        Assert.Equal((byte[])[0x94 /* Array(4) */, 0x7e /* 0x7e(127) */, 0x00 /* Sequence(0) */, .. ToMessagePackBytes(TimeSpan.FromMilliseconds(100)) /* ClientSentAt */, 0xc0 /* Nil */], request1.ToArray());
+        Assert.Equal((byte[])[0x94 /* Array(4) */, 0x7e /* 0x7e(127) */, 0x01 /* Sequence(1) */, .. ToMessagePackBytes(TimeSpan.FromMilliseconds(200)) /* CliSentAt */, 0xc0 /* Nil */], request2.ToArray());
+        Assert.Equal((byte[])[0x94 /* Array(4) */, 0x7e /* 0x7e(127) */, 0x02 /* Sequence(2) */, .. ToMessagePackBytes(TimeSpan.FromMilliseconds(300)) /* CliSentAt */, 0xc0 /* Nil */], request3.ToArray());
 
-        static byte[] ToMessagePackBytes(DateTimeOffset dt)
+        static byte[] ToMessagePackBytes(TimeSpan ts)
         {
-            var ms = dt.ToUnixTimeMilliseconds();
+            var ms = (long)ts.TotalMilliseconds;
 
             var arrayBufferWriter = new ArrayBufferWriter<byte>();
             var writer = new MessagePackWriter(arrayBufferWriter);
@@ -475,6 +476,33 @@ public class StreamingHubTest
             writer.Flush();
             return arrayBufferWriter.WrittenMemory.ToArray();
         }
+    }
+
+    [Fact]
+    public async Task ClientHeartbeat_FirstTime()
+    {
+        // Arrange
+        var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var timeProvider = new FakeTimeProvider();
+        var helper = new StreamingHubClientTestHelper<IGreeterHub, IGreeterHubReceiver>(factoryProvider: DynamicStreamingHubClientFactoryProvider.Instance);
+        var options = StreamingHubClientOptions.CreateWithDefault()
+            .WithTimeProvider(timeProvider)
+            .WithClientHeartbeatTimeout(TimeSpan.FromSeconds(1))
+            .WithClientHeartbeatInterval(TimeSpan.FromSeconds(1));
+        var client = await helper.ConnectAsync(options, timeout.Token);
+
+        // Act
+        var waitForDisconnectTask = client.WaitForDisconnect();
+        timeProvider.Advance(TimeSpan.FromSeconds(1));
+        await Task.Delay(100); // Wait for processing queue.
+        timeProvider.Advance(TimeSpan.FromSeconds(1));
+        await Task.Delay(100); // Wait for processing queue.
+        timeProvider.Advance(TimeSpan.FromSeconds(1));
+        await Task.Delay(100); // Wait for processing queue.
+        await waitForDisconnectTask.WaitAsync(timeout.Token);
+
+        // Assert
+        Assert.True(waitForDisconnectTask.IsCompletedSuccessfully); // the client should be timed-out by heartbeat timer.
     }
 
     [Fact]
@@ -545,6 +573,164 @@ public class StreamingHubTest
         Assert.Equal([.. "Hello World"u8], received); // Respond to the heartbeat from the server.
         var request1 = await helper.ReadRequestRawAsync();
         Assert.Equal((byte[])[0x94 /* Array(4) */, 0x7f /* Type:127 */, 0x00 /* Sequence(0) */, .. (byte[])[0xcd, 0x30, 0x39] /* ServerSentAt */, 0xc0 /* Nil */], request1.ToArray()); // Respond to the heartbeat from the server.
+    }
+
+    [Fact]
+    public async Task WaitForDisconnectAsync_CompletedNormally()
+    {
+        // Arrange
+        var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var helper = new StreamingHubClientTestHelper<IGreeterHub, IGreeterHubReceiver>(factoryProvider: DynamicStreamingHubClientFactoryProvider.Instance);
+        var client = await helper.ConnectAsync(timeout.Token);
+
+        // Act
+        var waitForDisconnectTask = client.WaitForDisconnectAsync();
+        await client.DisposeAsync(); // Complete request and disconnect from the server.
+        var disconnectionReason = await waitForDisconnectTask.WaitAsync(timeout.Token);
+
+        // Assert
+        Assert.Equal(DisconnectionType.CompletedNormally, disconnectionReason.Type);
+        Assert.Null(disconnectionReason.Exception);
+    }
+
+    [Fact]
+    public async Task WaitForDisconnectAsync_TimedOut()
+    {
+        // Arrange
+        var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var timeProvider = new FakeTimeProvider();
+        var helper = new StreamingHubClientTestHelper<IGreeterHub, IGreeterHubReceiver>(factoryProvider: DynamicStreamingHubClientFactoryProvider.Instance);
+        var options = StreamingHubClientOptions.CreateWithDefault()
+            .WithTimeProvider(timeProvider)
+            .WithClientHeartbeatTimeout(TimeSpan.FromSeconds(1))
+            .WithClientHeartbeatInterval(TimeSpan.FromSeconds(1));
+        var client = await helper.ConnectAsync(options, timeout.Token);
+
+        // Act
+        var waitForDisconnectTask = client.WaitForDisconnectAsync();
+        timeProvider.Advance(TimeSpan.FromSeconds(1));
+        await Task.Delay(100);
+        timeProvider.Advance(TimeSpan.FromSeconds(1));
+        await Task.Delay(100);
+        timeProvider.Advance(TimeSpan.FromSeconds(1));
+        await Task.Delay(100);
+        var disconnectionReason = await waitForDisconnectTask.WaitAsync(timeout.Token);
+
+        // Assert
+        Assert.Equal(DisconnectionType.TimedOut, disconnectionReason.Type);
+        Assert.IsType<RpcException>(disconnectionReason.Exception);
+    }
+
+    [Fact]
+    public async Task WaitForDisconnectAsync_Faulted()
+    {
+        // Arrange
+        var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var helper = new StreamingHubClientTestHelper<IGreeterHub, IGreeterHubReceiver>(factoryProvider: DynamicStreamingHubClientFactoryProvider.Instance);
+        var client = await helper.ConnectAsync(timeout.Token);
+
+        // Act
+        var waitForDisconnectTask = client.WaitForDisconnectAsync();
+        helper.ThrowIOException();
+        var disconnectionReason = await waitForDisconnectTask.WaitAsync(timeout.Token);
+
+        // Assert
+        Assert.Equal(DisconnectionType.Faulted, disconnectionReason.Type);
+        Assert.IsType<RpcException>(disconnectionReason.Exception);
+    }
+
+    [Fact]
+    public async Task ThrowRpcException_After_Disconnected()
+    {
+        // Arrange
+        var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var helper = new StreamingHubClientTestHelper<IGreeterHub, IGreeterHubReceiver>(factoryProvider: DynamicStreamingHubClientFactoryProvider.Instance);
+        var client = await helper.ConnectAsync(timeout.Token);
+        // Set the client's connection status to “Disconnected”.
+        helper.ThrowRpcException();
+        var disconnectionReason = await client.WaitForDisconnectAsync().WaitAsync(timeout.Token);
+
+        // Act
+        var ex = await Record.ExceptionAsync(async () => await client.Parameter_Zero());
+
+        // Assert
+        Assert.IsType<RpcException>(ex);
+        Assert.Contains("StreamingHubClient has already been disconnected from the server.", ex.Message);
+    }
+
+    [Fact]
+    public async Task ThrowObjectDisposedException_After_Disposed()
+    {
+        // Arrange
+        var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var helper = new StreamingHubClientTestHelper<IGreeterHub, IGreeterHubReceiver>(factoryProvider: DynamicStreamingHubClientFactoryProvider.Instance);
+        var client = await helper.ConnectAsync(timeout.Token);
+        // Set the client's connection status to “Disconnected”.
+        helper.ThrowRpcException();
+        var disconnectionReason = await client.WaitForDisconnectAsync().WaitAsync(timeout.Token);
+
+        // Act
+        await client.DisposeAsync();
+        var ex = await Record.ExceptionAsync(async () => await client.Parameter_Zero());
+
+        // Assert
+        var ode = Assert.IsType<ObjectDisposedException>(ex);
+        Assert.Equal(nameof(StreamingHubClient), ode.ObjectName);
+        Assert.Contains("StreamingHubClient has already been disconnected from the server.", ex.Message);
+    }
+
+    [Fact]
+    public async Task Cancel_While_WritingStream()
+    {
+        // Arrange
+        AggregateException? unobservedException = default;
+        EventHandler<UnobservedTaskExceptionEventArgs> unobservedTaskExceptionEventHandler = (sender, e) =>
+        {
+            unobservedException = e.Exception;
+        };
+        try
+        {
+            TaskScheduler.UnobservedTaskException += unobservedTaskExceptionEventHandler;
+            await CoreAsync();
+            await Task.Delay(100);
+            GC.Collect();
+            GC.Collect();
+            GC.Collect();
+            GC.Collect();
+            await Task.Delay(100);
+        }
+        finally
+        {
+            TaskScheduler.UnobservedTaskException -= unobservedTaskExceptionEventHandler;
+        }
+
+        var ex = unobservedException?.InnerExceptions.FirstOrDefault(x => x.TargetSite?.Name == "MoveNext" && (x.TargetSite?.DeclaringType?.FullName?.StartsWith("MagicOnion.Client.Tests.ChannelClientStreamWriter") ?? false));
+
+        Assert.Null(ex);
+
+        static async Task CoreAsync()
+        {
+            var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var helper = new StreamingHubClientTestHelper<IGreeterHub, IGreeterHubReceiver>(factoryProvider: DynamicStreamingHubClientFactoryProvider.Instance);
+            var client = await helper.ConnectAsync(timeout.Token);
+
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    while (true)
+                    {
+                        _ = client.Parameter_One(0);
+                    }
+                }
+                catch
+                {
+                    // Ignore exception
+                }
+            });
+            await Task.Delay(100);
+            await client.DisposeAsync();
+        }
     }
 }
 

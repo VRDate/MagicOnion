@@ -1,13 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
+    <TargetFrameworks>net8.0</TargetFrameworks>
 
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
     <NoWarn>$(NoWarn);1701;1702;1705;1591</NoWarn>
-    <DefineConstants>$(DefineConstants);NON_UNITY</DefineConstants>
 
     <!-- NuGet -->
     <PackageId>MagicOnion.Server.Redis</PackageId>

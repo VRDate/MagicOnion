@@ -20,10 +20,12 @@ class StartupService : IHostedService
 
     private void PrintStartupInformation()
     {
+        Console.WriteLine($"Benchmarker {ApplicationInformation.Current.BenchmarkerVersion}");
         Console.WriteLine($"MagicOnion {ApplicationInformation.Current.MagicOnionVersion}");
         Console.WriteLine($"grpc-dotnet {ApplicationInformation.Current.GrpcNetVersion}");
         Console.WriteLine($"MessagePack {ApplicationInformation.Current.MessagePackVersion}");
         Console.WriteLine($"MemoryPack {ApplicationInformation.Current.MemoryPackVersion}");
+        Console.WriteLine($"IsLatestMagicOnion {ApplicationInformation.Current.IsLatestMagicOnion}");
         Console.WriteLine();
 
         Console.WriteLine($"Listening on:");
@@ -36,6 +38,7 @@ class StartupService : IHostedService
         Console.WriteLine($"{nameof(RuntimeInformation.OSDescription)}: {ApplicationInformation.Current.OSDescription}");
         Console.WriteLine($"{nameof(RuntimeInformation.OSArchitecture)}: {ApplicationInformation.Current.OSArchitecture}");
         Console.WriteLine($"{nameof(RuntimeInformation.ProcessArchitecture)}: {ApplicationInformation.Current.ProcessArchitecture}");
+        Console.WriteLine($"{nameof(ApplicationInformation.Current.CpuModelName)}: {ApplicationInformation.Current.CpuModelName}");
         Console.WriteLine($"{nameof(GCSettings.IsServerGC)}: {ApplicationInformation.Current.IsServerGC}");
         Console.WriteLine($"{nameof(Environment.ProcessorCount)}: {ApplicationInformation.Current.ProcessorCount}");
         Console.WriteLine($"{nameof(Debugger)}.{nameof(Debugger.IsAttached)}: {ApplicationInformation.Current.IsAttached}");

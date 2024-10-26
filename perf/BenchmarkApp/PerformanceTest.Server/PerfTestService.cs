@@ -11,6 +11,8 @@ public class PerfTestService : ServiceBase<IPerfTestService>, IPerfTestService
     {
         return UnaryResult.FromResult(new ServerInformation(
             Environment.MachineName,
+            ApplicationInformation.Current.BenchmarkerVersion,
+            ApplicationInformation.Current.IsLatestMagicOnion,
             ApplicationInformation.Current.MagicOnionVersion,
             ApplicationInformation.Current.GrpcNetVersion,
             ApplicationInformation.Current.MessagePackVersion,
@@ -20,6 +22,7 @@ public class PerfTestService : ServiceBase<IPerfTestService>, IPerfTestService
             ApplicationInformation.Current.OSDescription,
             ApplicationInformation.Current.OSArchitecture,
             ApplicationInformation.Current.ProcessArchitecture,
+            ApplicationInformation.Current.CpuModelName,
             ApplicationInformation.Current.IsServerGC,
             ApplicationInformation.Current.ProcessorCount,
             ApplicationInformation.Current.IsAttached));

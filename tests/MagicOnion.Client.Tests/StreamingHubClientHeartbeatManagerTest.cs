@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Diagnostics;
 using System.Threading.Channels;
+using MagicOnion.Client.Internal;
 using MagicOnion.Internal;
 using Microsoft.Extensions.Time.Testing;
 
@@ -19,14 +20,13 @@ public class StreamingHubClientHeartbeatManagerTest
         var clientHeartbeatResponseReceived = new List<ClientHeartbeatEvent>();
         var origin = new DateTimeOffset(2024, 7, 1, 0, 0, 0, TimeSpan.Zero);
         var timeProvider = new FakeTimeProvider(origin);
-        using var manager = new StreamingHubClientHeartbeatManager(
+        await using var manager = new StreamingHubClientHeartbeatManager(
             channel.Writer,
             interval,
             timeout,
             onServerHeartbeatReceived: x => serverHeartbeatReceived.Add(x.Metadata.ToArray()),
             onClientHeartbeatResponseReceived: x => clientHeartbeatResponseReceived.Add(x),
             synchronizationContext: null,
-            shutdownToken: CancellationToken.None,
             timeProvider
         );
 
@@ -41,11 +41,11 @@ public class StreamingHubClientHeartbeatManagerTest
 
         // Assert
         Assert.True(channel.Reader.TryRead(out var heartbeat1));
-        Assert.Equal((byte[])[0x94 /* Array(4) */, 0x7e /* 0x7e(127) */, 0x0 /* Sequence(0) */, .. ToMessagePackBytes(origin.AddSeconds(1)) /* ClientSentAt */, 0xc0 /* Nil */], heartbeat1.Memory.ToArray());
+        Assert.Equal((byte[])[0x94 /* Array(4) */, 0x7e /* 0x7e(127) */, 0x0 /* Sequence(0) */, .. ToMessagePackBytes(TimeSpan.FromSeconds(1)) /* ClientSentAt */, 0xc0 /* Nil */], heartbeat1.Memory.ToArray());
         Assert.True(channel.Reader.TryRead(out var heartbeat2));
-        Assert.Equal((byte[])[0x94 /* Array(4) */, 0x7e /* 0x7e(127) */, 0x1 /* Sequence(1) */, .. ToMessagePackBytes(origin.AddSeconds(2)) /* ClientSentAt */, 0xc0 /* Nil */], heartbeat2.Memory.ToArray());
+        Assert.Equal((byte[])[0x94 /* Array(4) */, 0x7e /* 0x7e(127) */, 0x1 /* Sequence(1) */, .. ToMessagePackBytes(TimeSpan.FromSeconds(2)) /* ClientSentAt */, 0xc0 /* Nil */], heartbeat2.Memory.ToArray());
         Assert.True(channel.Reader.TryRead(out var heartbeat3));
-        Assert.Equal((byte[])[0x94 /* Array(4) */, 0x7e /* 0x7e(127) */, 0x2 /* Sequence(2) */, .. ToMessagePackBytes(origin.AddSeconds(3)) /* ClientSentAt */, 0xc0 /* Nil */], heartbeat3.Memory.ToArray());
+        Assert.Equal((byte[])[0x94 /* Array(4) */, 0x7e /* 0x7e(127) */, 0x2 /* Sequence(2) */, .. ToMessagePackBytes(TimeSpan.FromSeconds(3)) /* ClientSentAt */, 0xc0 /* Nil */], heartbeat3.Memory.ToArray());
 
         Assert.False(manager.TimeoutToken.IsCancellationRequested);
     }
@@ -61,14 +61,13 @@ public class StreamingHubClientHeartbeatManagerTest
         var clientHeartbeatResponseReceived = new List<ClientHeartbeatEvent>();
         var origin = new DateTimeOffset(2024, 7, 1, 0, 0, 0, TimeSpan.Zero);
         var timeProvider = new FakeTimeProvider(origin);
-        using var manager = new StreamingHubClientHeartbeatManager(
+        await using var manager = new StreamingHubClientHeartbeatManager(
             channel.Writer,
             interval,
             timeout,
             onServerHeartbeatReceived: x => serverHeartbeatReceived.Add(x.Metadata.ToArray()),
             onClientHeartbeatResponseReceived: x => clientHeartbeatResponseReceived.Add(x),
             synchronizationContext: null,
-            shutdownToken: CancellationToken.None,
             timeProvider
         );
 
@@ -78,32 +77,32 @@ public class StreamingHubClientHeartbeatManagerTest
         await Task.Delay(10);
         timeProvider.Advance(TimeSpan.FromMilliseconds(100));
         await Task.Delay(10);
-        manager.ProcessClientHeartbeatResponse(StreamingHubPayloadPool.Shared.RentOrCreate([0x95 /* Array(5) */, 0x7e /* 0x7e(127) */, 0x0 /* Sequence(0) */, .. ToMessagePackBytes(timeProvider.GetUtcNow().AddMilliseconds(-100)) /* ClientSentAt */, 0xc0 /* Nil */, 0xc0 /* Nil */]));
+        manager.ProcessClientHeartbeatResponse(StreamingHubPayloadPool.Shared.RentOrCreate([0x95 /* Array(5) */, 0x7e /* 0x7e(127) */, 0x0 /* Sequence(0) */, .. ToMessagePackBytes(TimeSpan.FromMilliseconds(1000)) /* ClientSentAt */, 0xc0 /* Nil */, 0xc0 /* Nil */]));
 
         timeProvider.Advance(TimeSpan.FromMilliseconds(900)); // Send
         await Task.Delay(10);
         timeProvider.Advance(TimeSpan.FromMilliseconds(100));
         await Task.Delay(10);
-        manager.ProcessClientHeartbeatResponse(StreamingHubPayloadPool.Shared.RentOrCreate([0x95 /* Array(5) */, 0x7e /* 0x7e(127) */, 0x1 /* Sequence(1) */, .. ToMessagePackBytes(timeProvider.GetUtcNow().AddMilliseconds(-100)) /* ClientSentAt */, 0xc0 /* Nil */, 0xc0 /* Nil */]));
+        manager.ProcessClientHeartbeatResponse(StreamingHubPayloadPool.Shared.RentOrCreate([0x95 /* Array(5) */, 0x7e /* 0x7e(127) */, 0x1 /* Sequence(1) */, .. ToMessagePackBytes(TimeSpan.FromMilliseconds(2000)) /* ClientSentAt */, 0xc0 /* Nil */, 0xc0 /* Nil */]));
 
         timeProvider.Advance(TimeSpan.FromMilliseconds(900)); // Send
         await Task.Delay(10);
         timeProvider.Advance(TimeSpan.FromMilliseconds(100));
         await Task.Delay(10);
-        manager.ProcessClientHeartbeatResponse(StreamingHubPayloadPool.Shared.RentOrCreate([0x95 /* Array(5) */, 0x7e /* 0x7e(127) */, 0x2 /* Sequence(2) */, .. ToMessagePackBytes(timeProvider.GetUtcNow().AddMilliseconds(-100)) /* ClientSentAt */, 0xc0 /* Nil */, 0xc0 /* Nil */]));
+        manager.ProcessClientHeartbeatResponse(StreamingHubPayloadPool.Shared.RentOrCreate([0x95 /* Array(5) */, 0x7e /* 0x7e(127) */, 0x2 /* Sequence(2) */, .. ToMessagePackBytes(TimeSpan.FromMilliseconds(3000)) /* ClientSentAt */, 0xc0 /* Nil */, 0xc0 /* Nil */]));
 
         await Task.Delay(10);
 
         // Assert
         Assert.Equal(3, clientHeartbeatResponseReceived.Count);
         Assert.True(channel.Reader.TryRead(out var heartbeat1));
-        Assert.Equal((byte[])[0x94 /* Array(4) */, 0x7e /* 0x7e(127) */, 0x0 /* Sequence(0) */, .. ToMessagePackBytes(origin.AddSeconds(1)) /* ClientSentAt */, 0xc0 /* Nil */], heartbeat1.Memory.ToArray());
+        Assert.Equal((byte[])[0x94 /* Array(4) */, 0x7e /* 0x7e(127) */, 0x0 /* Sequence(0) */, .. ToMessagePackBytes(TimeSpan.FromMilliseconds(1000)) /* ClientSentAt */, 0xc0 /* Nil */], heartbeat1.Memory.ToArray());
         Assert.Equal(TimeSpan.FromMilliseconds(100), clientHeartbeatResponseReceived[0].RoundTripTime);
         Assert.True(channel.Reader.TryRead(out var heartbeat2));
-        Assert.Equal((byte[])[0x94 /* Array(4) */, 0x7e /* 0x7e(127) */, 0x1 /* Sequence(1) */, .. ToMessagePackBytes(origin.AddSeconds(2)) /* ClientSentAt */, 0xc0 /* Nil */], heartbeat2.Memory.ToArray());
+        Assert.Equal((byte[])[0x94 /* Array(4) */, 0x7e /* 0x7e(127) */, 0x1 /* Sequence(1) */, .. ToMessagePackBytes(TimeSpan.FromMilliseconds(2000)) /* ClientSentAt */, 0xc0 /* Nil */], heartbeat2.Memory.ToArray());
         Assert.Equal(TimeSpan.FromMilliseconds(100), clientHeartbeatResponseReceived[1].RoundTripTime);
         Assert.True(channel.Reader.TryRead(out var heartbeat3));
-        Assert.Equal((byte[])[0x94 /* Array(4) */, 0x7e /* 0x7e(127) */, 0x2 /* Sequence(2) */, .. ToMessagePackBytes(origin.AddSeconds(3)) /* ClientSentAt */, 0xc0 /* Nil */], heartbeat3.Memory.ToArray());
+        Assert.Equal((byte[])[0x94 /* Array(4) */, 0x7e /* 0x7e(127) */, 0x2 /* Sequence(2) */, .. ToMessagePackBytes(TimeSpan.FromMilliseconds(3000)) /* ClientSentAt */, 0xc0 /* Nil */], heartbeat3.Memory.ToArray());
         Assert.Equal(TimeSpan.FromMilliseconds(100), clientHeartbeatResponseReceived[2].RoundTripTime);
 
         Assert.False(manager.TimeoutToken.IsCancellationRequested);
@@ -120,14 +119,13 @@ public class StreamingHubClientHeartbeatManagerTest
         var clientHeartbeatResponseReceived = new List<ClientHeartbeatEvent>();
         var origin = new DateTimeOffset(2024, 7, 1, 0, 0, 0, TimeSpan.Zero);
         var timeProvider = new FakeTimeProvider(origin);
-        using var manager = new StreamingHubClientHeartbeatManager(
+        await using var manager = new StreamingHubClientHeartbeatManager(
             channel.Writer,
             interval,
             timeout,
             onServerHeartbeatReceived: x => serverHeartbeatReceived.Add(x.Metadata.ToArray()),
             onClientHeartbeatResponseReceived: x => clientHeartbeatResponseReceived.Add(x),
             synchronizationContext: null,
-            shutdownToken: CancellationToken.None,
             timeProvider
         );
 
@@ -140,7 +138,7 @@ public class StreamingHubClientHeartbeatManagerTest
 
         // Assert
         Assert.True(channel.Reader.TryRead(out var heartbeat1));
-        Assert.Equal((byte[])[0x94 /* Array(4) */, 0x7e /* 0x7e(127) */, 0x0 /* Sequence(0) */, .. ToMessagePackBytes(origin.AddSeconds(1)) /* ClientSentAt */, 0xc0 /* Nil */], heartbeat1.Memory.ToArray());
+        Assert.Equal((byte[])[0x94 /* Array(4) */, 0x7e /* 0x7e(127) */, 0x0 /* Sequence(0) */, .. ToMessagePackBytes(TimeSpan.FromSeconds(1)) /* ClientSentAt */, 0xc0 /* Nil */], heartbeat1.Memory.ToArray());
         Assert.False(channel.Reader.TryRead(out var heartbeat2));
 
         Assert.True(manager.TimeoutToken.IsCancellationRequested);
@@ -158,14 +156,13 @@ public class StreamingHubClientHeartbeatManagerTest
         var clientHeartbeatResponseReceived = new List<ClientHeartbeatEvent>();
         var origin = new DateTimeOffset(2024, 7, 1, 0, 0, 0, TimeSpan.Zero);
         var timeProvider = new FakeTimeProvider(origin);
-        using var manager = new StreamingHubClientHeartbeatManager(
+        await using var manager = new StreamingHubClientHeartbeatManager(
             channel.Writer,
             interval,
             timeout,
             onServerHeartbeatReceived: x => serverHeartbeatReceived.Add(x.Metadata.ToArray()),
             onClientHeartbeatResponseReceived: x => clientHeartbeatResponseReceived.Add(x),
             synchronizationContext: null,
-            shutdownToken: CancellationToken.None,
             timeProvider
         );
 
@@ -207,14 +204,13 @@ public class StreamingHubClientHeartbeatManagerTest
         var clientHeartbeatResponseReceived = new List<ClientHeartbeatEvent>();
         var origin = new DateTimeOffset(2024, 7, 1, 0, 0, 0, TimeSpan.Zero);
         var timeProvider = new FakeTimeProvider(origin);
-        using var manager = new StreamingHubClientHeartbeatManager(
+        await using var manager = new StreamingHubClientHeartbeatManager(
             channel.Writer,
             interval,
             timeout,
             onServerHeartbeatReceived: x => serverHeartbeatReceived.Add(x.Metadata.ToArray()),
             onClientHeartbeatResponseReceived: x => clientHeartbeatResponseReceived.Add(x),
             synchronizationContext: null,
-            shutdownToken: CancellationToken.None,
             timeProvider
         );
 
@@ -256,14 +252,13 @@ public class StreamingHubClientHeartbeatManagerTest
         var clientHeartbeatResponseReceived = new List<ClientHeartbeatEvent>();
         var origin = new DateTimeOffset(2024, 7, 1, 0, 0, 0, TimeSpan.Zero);
         var timeProvider = new FakeTimeProvider(origin);
-        using var manager = new StreamingHubClientHeartbeatManager(
+        await using var manager = new StreamingHubClientHeartbeatManager(
             channel.Writer,
             interval,
             timeout,
             onServerHeartbeatReceived: x => serverHeartbeatReceived.Add(x.Metadata.ToArray()),
             onClientHeartbeatResponseReceived: x => clientHeartbeatResponseReceived.Add(x),
             synchronizationContext: null,
-            shutdownToken: CancellationToken.None,
             timeProvider
         );
 
@@ -286,9 +281,9 @@ public class StreamingHubClientHeartbeatManagerTest
         Assert.False(manager.TimeoutToken.IsCancellationRequested);
 
         // Respond to the first message. but it does not respond to subsequent messages.
-        manager.ProcessClientHeartbeatResponse(StreamingHubPayloadPool.Shared.RentOrCreate([0x95 /* Array(5) */, 0x7e /* 0x7e(127) */, 0x0 /* Sequence(0) */, .. ToMessagePackBytes(origin.AddSeconds(1)) /* ClientSentAt * /, 0xc0 /* Nil */, 0xc0 /* Nil */]));
-        manager.ProcessClientHeartbeatResponse(StreamingHubPayloadPool.Shared.RentOrCreate([0x95 /* Array(5) */, 0x7e /* 0x7e(127) */, 0x1 /* Sequence(1) */, .. ToMessagePackBytes(origin.AddSeconds(2)) /* ClientSentAt * /, 0xc0 /* Nil */, 0xc0 /* Nil */]));
-        manager.ProcessClientHeartbeatResponse(StreamingHubPayloadPool.Shared.RentOrCreate([0x95 /* Array(5) */, 0x7e /* 0x7e(127) */, 0x2 /* Sequence(2) */, .. ToMessagePackBytes(origin.AddSeconds(3)) /* ClientSentAt * /, 0xc0 /* Nil */, 0xc0 /* Nil */]));
+        manager.ProcessClientHeartbeatResponse(StreamingHubPayloadPool.Shared.RentOrCreate([0x95 /* Array(5) */, 0x7e /* 0x7e(127) */, 0x0 /* Sequence(0) */, .. ToMessagePackBytes(origin.AddSeconds(1)) /* ClientSentAt */, 0xc0 /* Nil */, 0xc0 /* Nil */]));
+        manager.ProcessClientHeartbeatResponse(StreamingHubPayloadPool.Shared.RentOrCreate([0x95 /* Array(5) */, 0x7e /* 0x7e(127) */, 0x1 /* Sequence(1) */, .. ToMessagePackBytes(origin.AddSeconds(2)) /* ClientSentAt */, 0xc0 /* Nil */, 0xc0 /* Nil */]));
+        manager.ProcessClientHeartbeatResponse(StreamingHubPayloadPool.Shared.RentOrCreate([0x95 /* Array(5) */, 0x7e /* 0x7e(127) */, 0x2 /* Sequence(2) */, .. ToMessagePackBytes(origin.AddSeconds(3)) /* ClientSentAt */, 0xc0 /* Nil */, 0xc0 /* Nil */]));
 
         timeProvider.Advance(TimeSpan.FromMilliseconds(100)); // 3s has elapsed since the first message.
         await Task.Delay(10);
@@ -298,6 +293,17 @@ public class StreamingHubClientHeartbeatManagerTest
     static byte[] ToMessagePackBytes(DateTimeOffset dt)
     {
         var ms = dt.ToUnixTimeMilliseconds();
+
+        var arrayBufferWriter = new ArrayBufferWriter<byte>();
+        var writer = new MessagePackWriter(arrayBufferWriter);
+        writer.Write(ms);
+        writer.Flush();
+        return arrayBufferWriter.WrittenMemory.ToArray();
+    }
+
+    static byte[] ToMessagePackBytes(TimeSpan ts)
+    {
+        var ms = (long)ts.TotalMilliseconds;
 
         var arrayBufferWriter = new ArrayBufferWriter<byte>();
         var writer = new MessagePackWriter(arrayBufferWriter);

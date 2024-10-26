@@ -1,5 +1,3 @@
-#if NON_UNITY || ((!ENABLE_IL2CPP || UNITY_EDITOR) && !NET_STANDARD_2_0)
-
 using Grpc.Core;
 using MagicOnion.Internal;
 using MagicOnion.Internal.Reflection;
@@ -8,6 +6,7 @@ using MagicOnion.Server.Hubs;
 using MessagePack;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -16,6 +15,7 @@ using System.Threading.Tasks;
 
 namespace MagicOnion.Client.DynamicClient
 {
+    [RequiresUnreferencedCode(nameof(DynamicStreamingHubClientAssemblyHolder) + " is incompatible with trimming and Native AOT.")]
 #if ENABLE_SAVE_ASSEMBLY
     public
 #else
@@ -43,6 +43,7 @@ namespace MagicOnion.Client.DynamicClient
 #endif
     }
 
+    [RequiresUnreferencedCode(nameof(DynamicStreamingHubClientBuilder<TStreamingHub, TReceiver>) + " is incompatible with trimming and Native AOT.")]
 #if ENABLE_SAVE_ASSEMBLY
     public
 #else
@@ -711,6 +712,7 @@ namespace MagicOnion.Client.DynamicClient
             }
         }
 
+        [RequiresUnreferencedCode(nameof(MethodInfoCache) + " is incompatible with trimming and Native AOT.")]
         static class MethodInfoCache
         {
             // ReSharper disable StaticMemberInGenericType
@@ -783,5 +785,3 @@ namespace MagicOnion.Client.DynamicClient
         }
     }
 }
-
-#endif

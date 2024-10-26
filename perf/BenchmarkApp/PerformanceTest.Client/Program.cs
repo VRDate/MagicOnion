@@ -68,14 +68,17 @@ async Task Main(
     using var channelControl = config.CreateChannel();
     var controlServiceClient = MagicOnionClient.Create<IPerfTestControlService>(channelControl);
     await controlServiceClient.SetMemoryProfilerCollectAllocationsAsync(true);
+    (DatadogMetricsRecorder.MagicOnionVersions, DatadogMetricsRecorder.EnableLatestTag) = await controlServiceClient.ExchangeMagicOnionVersionTagAsync(ApplicationInformation.Current.TagMagicOnionVersion, ApplicationInformation.Current.IsLatestMagicOnion); // keep in Client
 
     ServerInformation serverInfo;
     WriteLog("Gathering the server information...");
     {
         serverInfo = await controlServiceClient.GetServerInformationAsync();
+        WriteLog($"Benchmarker {serverInfo.BenchmarkerVersion}");
         WriteLog($"MagicOnion {serverInfo.MagicOnionVersion}");
         WriteLog($"grpc-dotnet {serverInfo.GrpcNetVersion}");
         WriteLog($"{nameof(ApplicationInformation.OSDescription)}: {serverInfo.OSDescription}");
+        WriteLog($"IsLatestMagicOnion {serverInfo.IsLatestMagicOnion}");
     }
 
     var resultsByScenario = new Dictionary<ScenarioType, List<PerformanceResult>>();
@@ -92,9 +95,15 @@ async Task Main(
             }
             var result = await RunScenarioAsync(scenario2, config, config.ChannelList, controlServiceClient);
             results.Add(result);
+
+            WriteLog($"Interval 1s for next scenario...");
+            await Task.Delay(TimeSpan.FromSeconds(1)).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing); // interval
         }
     }
+    WriteLog($"All scenario complete");
 
+
+    WriteLog($"Saving metrics...");
     foreach (var (s, results) in resultsByScenario)
     {
         await datadog.PutClientBenchmarkMetricsAsync(s, ApplicationInformation.Current, results);
@@ -109,6 +118,7 @@ async Task Main(
         PrintStartupInformation(writer);
         writer.WriteLine($"========================================");
         writer.WriteLine($"Server Information:");
+        writer.WriteLine($"Benchmarker {serverInfo.BenchmarkerVersion}");
         writer.WriteLine($"MagicOnion {serverInfo.MagicOnionVersion}");
         writer.WriteLine($"grpc-dotnet {serverInfo.GrpcNetVersion}");
         writer.WriteLine($"MessagePack {serverInfo.MessagePackVersion}");
@@ -118,6 +128,7 @@ async Task Main(
         writer.WriteLine($"OSDescription: {serverInfo.OSDescription}");
         writer.WriteLine($"OSArchitecture: {serverInfo.OSArchitecture}");
         writer.WriteLine($"ProcessArchitecture : {serverInfo.ProcessArchitecture}");
+        writer.WriteLine($"CpuModelName : {serverInfo.CpuModelName}");
         writer.WriteLine($"IsServerGC: {serverInfo.IsServerGC}");
         writer.WriteLine($"ProcessorCount: {serverInfo.ProcessorCount}");
         writer.WriteLine($"========================================");
@@ -158,6 +169,8 @@ async Task Main(
             writer.WriteLine($"{s}\t{string.Join("\t", results.Select(x => x.RequestsPerSecond.ToString("0.000")))}\t{results.Average(x => x.RequestsPerSecond):0.000}");
         }
     }
+
+    WriteLog($"Benchmark completed");
 }
 
 async Task<PerformanceResult> RunScenarioAsync(ScenarioType scenario, ScenarioConfiguration config, IReadOnlyList<GrpcChannel> channels, IPerfTestControlService controlService)
@@ -191,8 +204,10 @@ async Task<PerformanceResult> RunScenarioAsync(ScenarioType scenario, ScenarioCo
 
     var ctx = new PerformanceTestRunningContext(connectionCount: config.Channels);
     using var cts = new CancellationTokenSource();
+    var cleanIndex = 0;
+    var threadBefore = ThreadPool.ThreadCount;
 
-    WriteLog($"Starting scenario '{scenario}'...");
+    WriteLog($"Starting scenario '{scenario}'");
     var tasks = new List<Task>();
     var scenarios = new List<IScenario>();
     for (var i = 0; i < config.Channels; i++)
@@ -212,8 +227,6 @@ async Task<PerformanceResult> RunScenarioAsync(ScenarioType scenario, ScenarioCo
         }
     }
 
-    WriteLog($"ThreadCount current: {ThreadPool.ThreadCount}");
-
     await controlService.CreateMemoryProfilerSnapshotAsync("Before Warmup");
     WriteLog($"Warming up...");
     await Task.Delay(TimeSpan.FromSeconds(config.Warmup));
@@ -225,15 +238,24 @@ async Task<PerformanceResult> RunScenarioAsync(ScenarioType scenario, ScenarioCo
     cts.CancelAfter(TimeSpan.FromSeconds(config.Duration));
     await Task.WhenAll(tasks);
     ctx.Complete();
-    WriteLog("Completed.");
+    WriteLog("Completed");
     await controlService.CreateMemoryProfilerSnapshotAsync("Completed");
 
-    WriteLog("Cleaning up...");
-    foreach (var s in scenarios.Chunk(ApplicationInformation.Current.ProcessorCount))
-    {
-        await Task.WhenAll(s.Select(x => x.CompleteAsync()));
-    }
+    var threadAfter = ThreadPool.ThreadCount;
 
+    WriteLog("Cleaning up...");
+    foreach (var s in scenarios.Chunk(Math.Clamp(scenarios.Count / 3, 1, scenarios.Count)))
+    {
+        WriteLog($"...Cleaning up ({cleanIndex++})");
+        try
+        {
+            await Task.WhenAll(s.Select(x => x.CompleteAsync()));
+        }
+        catch (NullReferenceException)
+        {
+            // ignore
+        }
+    }
     WriteLog("Cleanup completed");
 
     var result = ctx.GetResult();
@@ -252,6 +274,8 @@ async Task<PerformanceResult> RunScenarioAsync(ScenarioType scenario, ScenarioCo
     WriteLog($"Max Memory Usage: {result.hardware.MaxMemoryUsageMB} MB");
     WriteLog($"Avg Memory Usage: {result.hardware.AvgMemoryUsageMB} MB");
 
+    WriteLog($"Threads (diff): {threadAfter} ({(threadAfter - threadBefore):+#;-#;0})");
+
     return result;
 }
 
@@ -259,10 +283,12 @@ void PrintStartupInformation(TextWriter? writer = null)
 {
     writer ??= Console.Out;
 
+    writer.WriteLine($"Benchmarker {ApplicationInformation.Current.BenchmarkerVersion}");
     writer.WriteLine($"MagicOnion {ApplicationInformation.Current.MagicOnionVersion}");
     writer.WriteLine($"grpc-dotnet {ApplicationInformation.Current.GrpcNetVersion}");
     writer.WriteLine($"MessagePack {ApplicationInformation.Current.MessagePackVersion}");
     writer.WriteLine($"MemoryPack {ApplicationInformation.Current.MemoryPackVersion}");
+    writer.WriteLine($"IsLatestMagicOnion {ApplicationInformation.Current.IsLatestMagicOnion}");
     writer.WriteLine();
 
     writer.WriteLine("Configurations:");
@@ -271,6 +297,7 @@ void PrintStartupInformation(TextWriter? writer = null)
     writer.WriteLine($"{nameof(RuntimeInformation.OSDescription)}: {ApplicationInformation.Current.OSDescription}");
     writer.WriteLine($"{nameof(RuntimeInformation.OSArchitecture)}: {ApplicationInformation.Current.OSArchitecture}");
     writer.WriteLine($"{nameof(RuntimeInformation.ProcessArchitecture)}: {ApplicationInformation.Current.ProcessArchitecture}");
+    writer.WriteLine($"{nameof(ApplicationInformation.Current.CpuModelName)}: {ApplicationInformation.Current.CpuModelName}");
     writer.WriteLine($"{nameof(GCSettings.IsServerGC)}: {ApplicationInformation.Current.IsServerGC}");
     writer.WriteLine($"{nameof(ApplicationInformation.Current.ProcessorCount)}: {ApplicationInformation.Current.ProcessorCount}");
     writer.WriteLine($"{nameof(Debugger)}.{nameof(Debugger.IsAttached)}: {ApplicationInformation.Current.IsAttached}");
@@ -282,24 +309,13 @@ void WriteLog(string value)
     Console.WriteLine($"[{DateTime.Now:s}] {value}");
 }
 
-void SetThreads(int threadCount)
-{
-    ThreadPool.GetAvailableThreads(out var workerThread, out var ioCompletionPortThreads);
-    var count = Math.Min(150, Math.Max(ThreadPool.ThreadCount, threadCount)); // (ThreadPool.ThreadCount < threadCount) <= n <= 150
-    WriteLog($"ThreadCount before: {ThreadPool.ThreadCount}, tobe: {count}");
-    if (!ThreadPool.SetMinThreads(count, ioCompletionPortThreads))
-    {
-        WriteLog("Settings thread failed.");
-    }
-    WriteLog($"ThreadCount after: {ThreadPool.ThreadCount}, available workerthreads: {workerThread}");
-}
-
 IEnumerable<ScenarioType> GetRunScenarios(ScenarioType scenario)
 {
     return scenario switch
     {
-        ScenarioType.All => Enum.GetValues<ScenarioType>().Where(x => x != ScenarioType.All && x != ScenarioType.CI),
-        ScenarioType.CI => Enum.GetValues<ScenarioType>().Where(x => x == ScenarioType.Unary || x == ScenarioType.StreamingHub || x == ScenarioType.PingpongStreamingHub),
+        ScenarioType.All => Enum.GetValues<ScenarioType>().Where(x => x != ScenarioType.All && x != ScenarioType.CI && x != ScenarioType.CIFull),
+        ScenarioType.CI => Enum.GetValues<ScenarioType>().Where(x => x == ScenarioType.Unary || x == ScenarioType.StreamingHub),
+        ScenarioType.CIFull => Enum.GetValues<ScenarioType>().Where(x => x == ScenarioType.Unary || x == ScenarioType.StreamingHub || x == ScenarioType.PingpongStreamingHub),
         _ => [scenario],
     };
 }
@@ -315,30 +331,41 @@ static class DatadogMetricsRecorderExtensions
     /// <param name="results"></param>
     public static async Task PutClientBenchmarkMetricsAsync(this DatadogMetricsRecorder recorder, ScenarioType scenario, ApplicationInformation applicationInfo, IReadOnlyList<PerformanceResult> results)
     {
-        var tags = MetricsTagCache.Get((recorder.TagBranch, recorder.TagLegend, recorder.TagStreams, recorder.TagProtocol, recorder.TagSerialization, scenario, applicationInfo), static x => [
-            $"legend:{x.scenario.ToString().ToLower()}-{x.TagLegend}{x.TagStreams}",
-            $"branch:{x.TagBranch}",
-            $"streams:{x.TagStreams}",
-            $"protocol:{x.TagProtocol}",
-            $"process_arch:{x.applicationInfo.ProcessArchitecture}",
-            $"process_count:{x.applicationInfo.ProcessorCount}",
-            $"scenario:{x.scenario}",
-            $"serialization:{x.TagSerialization}",
-        ]);
-
         var filtered = RemoveOutlinerByIQR(results);
 
-        // Don't want to await each put. Let's send it to queue and await when benchmark ends.
-        recorder.Record(recorder.SendAsync("benchmark.magiconion.client.rps", filtered.Select(x => x.RequestsPerSecond).Average(), DatadogMetricsType.Rate, tags, "request"));
-        recorder.Record(recorder.SendAsync("benchmark.magiconion.client.total_requests", filtered.Select(x => x.TotalRequests).Average(), DatadogMetricsType.Gauge, tags, "request"));
-        recorder.Record(recorder.SendAsync("benchmark.magiconion.client.latency_mean", filtered.Select(x => x.Latency.Mean).Average(), DatadogMetricsType.Gauge, tags, "millisecond"));
-        recorder.Record(recorder.SendAsync("benchmark.magiconion.client.cpu_usage_max", filtered.Select(x => x.hardware.MaxCpuUsagePercent).Average(), DatadogMetricsType.Gauge, tags, "percent"));
-        recorder.Record(recorder.SendAsync("benchmark.magiconion.client.cpu_usage_avg", filtered.Select(x => x.hardware.AvgCpuUsagePercent).Average(), DatadogMetricsType.Gauge, tags, "percent"));
-        recorder.Record(recorder.SendAsync("benchmark.magiconion.client.memory_usage_max", filtered.Select(x => x.hardware.MaxMemoryUsageMB).Average(), DatadogMetricsType.Gauge, tags, "megabyte"));
-        recorder.Record(recorder.SendAsync("benchmark.magiconion.client.memory_usage_avg", filtered.Select(x => x.hardware.AvgMemoryUsageMB).Average(), DatadogMetricsType.Gauge, tags, "megabyte"));
+        Post(recorder, scenario, applicationInfo, filtered, false);
+        if (DatadogMetricsRecorder.EnableLatestTag)
+        {
+            Post(recorder, scenario, applicationInfo, filtered, true);
+        }
 
         // wait until send complete
         await recorder.WaitSaveAsync();
+
+        static void Post(DatadogMetricsRecorder recorder, ScenarioType scenario, ApplicationInformation applicationInfo, IReadOnlyList<PerformanceResult> filtered, bool enableLatestTag)
+        {
+            var magicOnionTag = enableLatestTag ? recorder.TagLatestMagicOnion : recorder.TagMagicOnion;
+            var tags = MetricsTagCache.Get((recorder.TagBranch, recorder.TagLegend, recorder.TagStreams, recorder.TagProtocol, recorder.TagSerialization, magicOnionTag, scenario, applicationInfo), static x => [
+                $"legend:{x.scenario.ToString().ToLower()}-{x.TagLegend}{x.TagStreams}",
+                $"branch:{x.TagBranch}",
+                $"magiconion:{x.magicOnionTag}",
+                $"protocol:{x.TagProtocol}",
+                $"process_arch:{x.applicationInfo.ProcessArchitecture}",
+                $"process_count:{x.applicationInfo.ProcessorCount}",
+                $"scenario:{x.scenario}",
+                $"serialization:{x.TagSerialization}",
+                $"streams:{x.TagStreams}",
+            ]);
+
+            // Don't want to await each put. Let's send it to queue and await when benchmark ends.
+            recorder.Record(recorder.SendAsync("benchmark.magiconion.client.rps", filtered.Select(x => x.RequestsPerSecond).Average(), DatadogMetricsType.Rate, tags, "request"));
+            recorder.Record(recorder.SendAsync("benchmark.magiconion.client.total_requests", filtered.Select(x => x.TotalRequests).Average(), DatadogMetricsType.Gauge, tags, "request"));
+            recorder.Record(recorder.SendAsync("benchmark.magiconion.client.latency_mean", filtered.Select(x => x.Latency.Mean).Average(), DatadogMetricsType.Gauge, tags, "millisecond"));
+            recorder.Record(recorder.SendAsync("benchmark.magiconion.client.cpu_usage_max", filtered.Select(x => x.hardware.MaxCpuUsagePercent).Average(), DatadogMetricsType.Gauge, tags, "percent"));
+            recorder.Record(recorder.SendAsync("benchmark.magiconion.client.cpu_usage_avg", filtered.Select(x => x.hardware.AvgCpuUsagePercent).Average(), DatadogMetricsType.Gauge, tags, "percent"));
+            recorder.Record(recorder.SendAsync("benchmark.magiconion.client.memory_usage_max", filtered.Select(x => x.hardware.MaxMemoryUsageMB).Average(), DatadogMetricsType.Gauge, tags, "megabyte"));
+            recorder.Record(recorder.SendAsync("benchmark.magiconion.client.memory_usage_avg", filtered.Select(x => x.hardware.AvgMemoryUsageMB).Average(), DatadogMetricsType.Gauge, tags, "megabyte"));
+        }
 
         // Remove Outliner by IQR
         static IReadOnlyList<PerformanceResult> RemoveOutlinerByIQR(IReadOnlyList<PerformanceResult> data)
@@ -375,9 +402,11 @@ public class ScenarioConfiguration
     public int Streams { get; }
     public int Channels { get; }
     public bool Verbose { get; }
-    public IReadOnlyList<GrpcChannel> ChannelList => channelList;
 
-    private readonly HttpMessageHandler httpHandler;
+    private readonly bool clientAuth;
+    private bool useHttp3;
+
+    public IReadOnlyList<GrpcChannel> ChannelList => channelList;
     private readonly List<GrpcChannel> channelList;
 
     private record TlsFile(string PfxFileName, string Password)
@@ -385,44 +414,25 @@ public class ScenarioConfiguration
         public static TlsFile Default = new TlsFile("Certs/client.pfx", "1111");
     }
 
-    public ScenarioConfiguration(string url, string protocol, bool clientauth, int warmup, int duration, int streams, int channels, bool verbose)
+    public ScenarioConfiguration(string url, string protocol, bool clientAuth, int warmup, int duration, int streams, int channels, bool verbose)
     {
-        var handler = new SocketsHttpHandler()
-        {
-            UseProxy = false,
-            AllowAutoRedirect = false,
-        };
-        handler.SslOptions.RemoteCertificateValidationCallback = (_, _, _, _) => true; // allow self cert
-        if (clientauth)
-        {
-            var basePath = Path.GetDirectoryName(AppContext.BaseDirectory);
-            var certPath = Path.Combine(basePath!, TlsFile.Default.PfxFileName);
-            // .NET 9 API....
-            //var clientCertificates = X509CertificateLoader.LoadPkcs12CollectionFromFile(certPath, TlsFile.Default.Password);
-            var clientCertificates = new System.Security.Cryptography.X509Certificates.X509Certificate2Collection(new System.Security.Cryptography.X509Certificates.X509Certificate2(certPath, TlsFile.Default.Password));
-            handler.SslOptions.ClientCertificates = clientCertificates;
-        }
-
+        bool useHttp3 = false;
         switch (protocol)
         {
             case "h2c":
                 {
                     url = url.Replace("https://", "http://");
-                    httpHandler = handler;
                     break;
                 }
             case "h2":
                 {
                     url = url.Replace("http://", "https://");
-                    httpHandler = handler;
                     break;
                 }
             case "h3":
                 {
                     url = url.Replace("http://", "https://");
-
-                    handler.ConnectCallback = (_, _) => throw new InvalidOperationException("Should never be called for H3");
-                    httpHandler = new Http3Handler(handler);
+                    useHttp3 = true;
                     break;
                 }
             default:
@@ -436,6 +446,8 @@ public class ScenarioConfiguration
         Streams = streams;
         Channels = channels;
         Verbose = verbose;
+        this.clientAuth = clientAuth;
+        this.useHttp3 = useHttp3;
 
         channelList = new List<GrpcChannel>(channels);
         for (var i = 0; i < Channels; i++)
@@ -446,30 +458,46 @@ public class ScenarioConfiguration
 
     public GrpcChannel CreateChannel()
     {
-        return Protocol switch
+        var httpClientHandler = new SocketsHttpHandler()
         {
-            "h2c" => GrpcChannel.ForAddress(Url),
-            "h2" => GrpcChannel.ForAddress(Url, new GrpcChannelOptions
-            {
-                HttpHandler = httpHandler,
-            }),
-            // h3 can use from Windows 11 Build 22000+, or Linux with libmsquic. https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel/http3?view=aspnetcore-8.0
-            "h3" => GrpcChannel.ForAddress(Url, new GrpcChannelOptions
-            {
-                HttpHandler = httpHandler,
-                // .NET 9 API....
-                // HttpVersion = new Version(3, 0), // Force H3 on all requests
-            }),
-            _ => throw new NotImplementedException(Protocol),
+            UseProxy = false,
+            AllowAutoRedirect = false,
+            EnableMultipleHttp2Connections = true,
         };
+
+        // allow server's self cert
+        httpClientHandler.SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+        {
+            RemoteCertificateValidationCallback = (_, _, _, _) => true,
+        };
+
+        if (clientAuth)
+        {
+            var basePath = Path.GetDirectoryName(AppContext.BaseDirectory);
+            var certPath = Path.Combine(basePath!, TlsFile.Default.PfxFileName);
+            // .NET 9 API....
+            //var clientCertificates = X509CertificateLoader.LoadPkcs12CollectionFromFile(certPath, TlsFile.Default.Password);
+            var clientCertificates = new System.Security.Cryptography.X509Certificates.X509Certificate2Collection(new System.Security.Cryptography.X509Certificates.X509Certificate2(certPath, TlsFile.Default.Password));
+            httpClientHandler.SslOptions.ClientCertificates = clientCertificates;
+        }
+
+        HttpMessageHandler httpMessageHandler = httpClientHandler;
+        if (useHttp3)
+        {
+            // HTTP/3 should never call this? But this is required for channel.State handling :(
+            //httpClientHandler.ConnectCallback = (_, _) => throw new InvalidOperationException("Should never be called for H3");
+            httpMessageHandler = new Http3Handler(httpClientHandler);
+        }
+
+        return GrpcChannel.ForAddress(Url, new GrpcChannelOptions
+        {
+            HttpHandler = httpMessageHandler,
+        });
     }
 
     // temporary solution for .NET8 and lower
-    public class Http3Handler : DelegatingHandler
+    public class Http3Handler(HttpMessageHandler innerHandler) : DelegatingHandler(innerHandler)
     {
-        public Http3Handler() { }
-        public Http3Handler(HttpMessageHandler innerHandler) : base(innerHandler) { }
-
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             // Force H3 on all requests.
